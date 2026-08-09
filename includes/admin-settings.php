@@ -1705,8 +1705,9 @@ function adaptive_test_settings_page_html() {
         if ( 'questions' === $active_tab ) :
             global $wpdb;
             $bank_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}adaptive_question_banks" );
-            $over_bank_limit = $bank_count > 3;
-            $over_question_limit = (bool) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}adaptive_questions GROUP BY bank_id HAVING COUNT(*) > 150 LIMIT 1" );
+            $over_bank_limit     = ! apply_filters( 'adaptive_test_bank_limit', true ) ? false : $bank_count > 3;
+            $has_question_limit  = (bool) apply_filters( 'adaptive_test_question_limit', true );
+            $over_question_limit = $has_question_limit && (bool) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}adaptive_questions GROUP BY bank_id HAVING COUNT(*) > 150 LIMIT 1" );
             if ( $over_bank_limit || $over_question_limit ) : ?>
             <div class="notice notice-info"><p>
                 <strong><?php esc_html_e( 'You are over the free tier limits.', 'adaptive-level-test' ); ?></strong>
@@ -2147,10 +2148,13 @@ function adaptive_test_settings_page_html() {
             <?php
             $current_bank_question_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table_name} WHERE bank_id = %d", $current_bank_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $at_question_limit = ! $edit_question && adaptive_test_question_limit_reached( $current_bank_id );
+            $show_question_cap = (bool) apply_filters( 'adaptive_test_question_limit', true );
             ?>
             <h3>
                 <?php echo $edit_question ? esc_html__( 'Edit Question', 'adaptive-level-test' ) : esc_html__( 'Add New Question', 'adaptive-level-test' ); ?>
+                <?php if ( $show_question_cap ) : ?>
                 <span style="font-size:0.85rem; font-weight:400; color:#6b7280; margin-left:8px;"><?php echo esc_html( $current_bank_question_count ) . ' / 150 ' . esc_html__( 'questions (free limit)', 'adaptive-level-test' ); ?></span>
+                <?php endif; ?>
             </h3>
             <?php if ( $at_question_limit ) : ?>
                 <p>
