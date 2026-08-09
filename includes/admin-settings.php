@@ -89,6 +89,11 @@ function adaptive_test_handle_question_actions() {
             'type'          => 'multiple_choice',
         ];
 
+        if ( ! in_array( $data['level'], [ 'A2', 'B1', 'B2', 'C1', 'C2' ], true ) ) {
+            wp_safe_redirect( add_query_arg( [ 'message' => 'invalid_level', 'tab' => 'questions', 'bank_id' => $data['bank_id'] ], remove_query_arg( [ 'adaptive_test_action' ] ) ) );
+            exit;
+        }
+
         if ( ! empty( $_POST['question_id'] ) ) {
             $wpdb->update( $table_name, $data, [ 'id' => absint( wp_unslash( $_POST['question_id'] ) ) ] );
         } else {
@@ -359,14 +364,14 @@ function adaptive_test_handle_tool_actions() {
         $banks_table = $wpdb->prefix . 'adaptive_question_banks';
         $table_name = $wpdb->prefix . 'adaptive_questions';
         
-        // Truncate tables
+        // Truncate both tables and re-insert the default bank atomically.
+        $wpdb->query( 'START TRANSACTION' ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared
         $wpdb->query( "TRUNCATE TABLE {$table_name}" );
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared
         $wpdb->query( "TRUNCATE TABLE {$banks_table}" );
-        
-        // Re-insert default bank
-        $wpdb->insert($banks_table, ['name' => 'Default Question Bank', 'is_default' => 1]);
+        $wpdb->insert( $banks_table, [ 'name' => 'Default Question Bank', 'is_default' => 1 ] );
+        $wpdb->query( 'COMMIT' ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared
         
         // Seed
         if (function_exists('adaptive_test_insert_sample_questions')) {
@@ -530,7 +535,6 @@ add_action('admin_init', 'adaptive_test_handle_tool_actions');
  * Register settings and fields.
  */
 function adaptive_test_register_settings() {
-    $hex = [ 'sanitize_callback' => 'sanitize_hex_color' ];
     $int = [ 'sanitize_callback' => 'absint' ];
     $str = [ 'sanitize_callback' => 'sanitize_text_field' ];
     $wt  = [ 'sanitize_callback' => 'adaptive_test_sanitize_font_weight' ];
@@ -957,7 +961,7 @@ function adaptive_test_add_admin_menu() {
     add_options_page(
         __('Adaptive Level Test Administration', 'adaptive-level-test'),
         __('Adaptive Level Test', 'adaptive-level-test'),
-        'manage_options',
+        'edit_others_posts',
         'adaptive-level-test',
         'adaptive_test_settings_page_html'
     );
@@ -989,7 +993,7 @@ function adaptive_test_preview_toggle_js() {
         var editMode = textarea.style.display !== 'none';
         textarea.style.display = editMode ? 'none' : '';
         preview.style.display  = editMode ? '' : 'none';
-        if (editMode) { preview.innerHTML = textarea.value; }
+        if (editMode) { preview.textContent = textarea.value; }
         btn.textContent = editMode ? '<?php echo esc_js( __( 'Edit HTML', 'adaptive-level-test' ) ); ?>' : '<?php echo esc_js( __( 'Preview', 'adaptive-level-test' ) ); ?>';
     }
 
@@ -1074,14 +1078,14 @@ function adaptive_test_preview_toggle_js() {
         function update() {
             // Content
             var t = document.getElementById('esl-start-title');
-            if (t && prevTitle) prevTitle.innerHTML = t.value;
+            if (t && prevTitle) prevTitle.textContent = t.value;
 
             var s = document.getElementById('esl-start-subtitle');
-            if (s && prevSubtitle) prevSubtitle.innerHTML = s.value;
+            if (s && prevSubtitle) prevSubtitle.textContent = s.value;
 
             var b = document.getElementById('esl-start-body');
             if (b && prevBody) {
-                prevBody.innerHTML = b.value;
+                prevBody.textContent = b.value;
                 prevBody.style.display = b.value.trim() ? '' : 'none';
             }
 
@@ -1095,7 +1099,7 @@ function adaptive_test_preview_toggle_js() {
             var gm = document.getElementById('esl-start-gdpr2');
             if (cb && prevGdpr) {
                 prevGdpr.style.display = cb.checked ? 'flex' : 'none';
-                if (gm && prevGdprMsg) prevGdprMsg.innerHTML = gm.value;
+                if (gm && prevGdprMsg) prevGdprMsg.textContent = gm.value;
             }
 
             // Title
@@ -1365,7 +1369,7 @@ function adaptive_test_preview_toggle_js() {
         function update() {
             // Title content + styling
             var titleEl = document.getElementById('esl-after-title');
-            if (titleEl && prevAfterTitle) prevAfterTitle.innerHTML = titleEl.value;
+            if (titleEl && prevAfterTitle) prevAfterTitle.textContent = titleEl.value;
             if (prevAfterTitle) {
                 prevAfterTitle.style.color      = eslVal('adaptive_test_after_title_color',  '#1f2937');
                 prevAfterTitle.style.fontSize   = eslVal('adaptive_test_after_title_size',   '24') + 'px';
@@ -1373,7 +1377,7 @@ function adaptive_test_preview_toggle_js() {
             }
             // Subheading content + styling
             var subEl = document.getElementById('esl-after-subheading');
-            if (subEl && prevAfterSub) prevAfterSub.innerHTML = subEl.value;
+            if (subEl && prevAfterSub) prevAfterSub.textContent = subEl.value;
             if (prevAfterSub) {
                 prevAfterSub.style.color      = eslVal('adaptive_test_after_subheading_color',  '#6b7280');
                 prevAfterSub.style.fontSize   = eslVal('adaptive_test_after_subheading_size',   '16') + 'px';
@@ -1381,7 +1385,7 @@ function adaptive_test_preview_toggle_js() {
             }
             // Body content + styling
             var bodyEl = document.getElementById('esl-after-body');
-            if (bodyEl && prevAfterBody) prevAfterBody.innerHTML = bodyEl.value;
+            if (bodyEl && prevAfterBody) prevAfterBody.textContent = bodyEl.value;
             if (prevAfterBody) {
                 prevAfterBody.style.color      = eslVal('adaptive_test_after_body_color',  '#6b7280');
                 prevAfterBody.style.fontSize   = eslVal('adaptive_test_after_body_size',   '14') + 'px';
@@ -1411,7 +1415,7 @@ function adaptive_test_preview_toggle_js() {
                     var labelEl  = document.getElementById('esl-error-rate-label');
                     var rawLabel = (labelEl && labelEl.value.trim()) ? labelEl.value : 'Margin of Error: ±{rate}%';
                     var errRate2 = Math.max(0, parseInt(eslVal('adaptive_test_error_rate', '5')) || 0);
-                    prevErrorMargin.innerHTML = rawLabel.replace('{rate}', errRate2);
+                    prevErrorMargin.textContent = rawLabel.replace('{rate}', errRate2);
                 }
             }
             if (prevActiveLabel) prevActiveLabel.style.color   = resultColor;
@@ -1580,7 +1584,8 @@ function adaptive_test_unsaved_changes_js() {
 
         function showModal(href) {
             var dl = Object.keys(dirty).map(function(k) { return labels[k] || k; });
-            list.innerHTML = dl.map(function(l) { return '<li>' + l + '</li>'; }).join('');
+            list.innerHTML = '';
+            dl.forEach(function(l) { var li = document.createElement('li'); li.textContent = l; list.appendChild(li); });
             pendingHref = href;
             overlay.classList.add('esl-visible');
             stayBtn.focus();
@@ -1633,15 +1638,19 @@ function adaptive_test_unsaved_changes_js() {
 add_action( 'admin_footer', 'adaptive_test_unsaved_changes_js' );
 
 function adaptive_test_settings_page_html() {
-    if (!current_user_can('manage_options')) {
+    if ( ! current_user_can( 'edit_others_posts' ) ) {
         return;
     }
+    $is_admin = current_user_can( 'manage_options' );
 
     // phpcs:disable WordPress.Security.NonceVerification.Recommended -- all GET reads in this function are display-only (tab, sub-tab, filter, sort, message params); all data-mutating paths are handled by adaptive_test_handle_question_actions() which calls check_admin_referer()
     $allowed_tabs = [ 'general', 'quiz', 'messages', 'questions', 'logs' ];
     $active_tab   = ( isset( $_GET['tab'] ) && in_array( $_GET['tab'], $allowed_tabs, true ) )
         ? sanitize_key( wp_unslash( $_GET['tab'] ) )
         : 'general';
+    if ( ! $is_admin ) {
+        $active_tab = 'logs';
+    }
     ?>
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
@@ -1721,6 +1730,7 @@ function adaptive_test_settings_page_html() {
             endif;
         endif; ?>
 
+        <?php if ( $is_admin ) : ?>
         <nav class="nav-tab-wrapper">
             <a href="?page=adaptive-level-test&tab=general" class="nav-tab <?php echo 'general' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'General Settings', 'adaptive-level-test' ); ?></a>
             <a href="?page=adaptive-level-test&tab=quiz" class="nav-tab <?php echo 'quiz' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Quiz Settings', 'adaptive-level-test' ); ?></a>
@@ -1728,6 +1738,7 @@ function adaptive_test_settings_page_html() {
             <a href="?page=adaptive-level-test&tab=questions" class="nav-tab <?php echo 'questions' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Questions', 'adaptive-level-test' ); ?></a>
             <a href="?page=adaptive-level-test&tab=logs" class="nav-tab <?php echo 'logs' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Attempt Logs', 'adaptive-level-test' ); ?></a>
         </nav>
+        <?php endif; ?>
 
         <?php if ($active_tab == 'general'): ?>
             <form action="options.php" method="post" style="margin-top: 20px;">
@@ -1844,7 +1855,7 @@ function adaptive_test_settings_page_html() {
                             <div id="esl-prev-card" style="background:<?php echo esc_attr( $pv_bg ); ?>; border-radius:<?php echo absint( $pv_radius ); ?>px; border:<?php echo esc_attr( $pv_card_border ); ?>; box-shadow:<?php echo esc_attr( $pv_shadow ); ?>; padding:28px; box-sizing:border-box;">
                                 <div id="esl-prev-title" style="font-size:1.1em; font-weight:700; text-align:center; margin:0 0 10px; line-height:1.3;"><?php echo wp_kses_post( $pv_title ); ?></div>
                                 <div id="esl-prev-subtitle" style="text-align:center; color:#6b7280; margin:0 0 10px; font-size:0.85em;"><?php echo wp_kses_post( $pv_subtitle ); ?></div>
-                                <div id="esl-prev-body" style="<?php echo $pv_body ? '' : 'display:none;'; ?> text-align:center; margin:0 0 10px; font-size:0.78em; color:#6b7280;"><?php echo wp_kses_post( $pv_body ); ?></div>
+                                <div id="esl-prev-body" style="<?php echo esc_attr( $pv_body ? '' : 'display:none;' ); ?> text-align:center; margin:0 0 10px; font-size:0.78em; color:#6b7280;"><?php echo wp_kses_post( $pv_body ); ?></div>
                                 <input type="text" id="esl-prev-email" disabled placeholder="<?php echo esc_attr( $pv_ph ); ?>" style="width:100%; text-align:center; border:2px solid #e5e7eb; border-radius:10px; padding:10px; box-sizing:border-box; font-size:0.82em; color:#9ca3af; background:#fff; margin-bottom:10px;">
                                 <div id="esl-prev-gdpr" style="<?php echo $pv_gdpr2_on ? 'display:flex;' : 'display:none;'; ?> align-items:flex-start; gap:6px; margin:6px 0 10px; font-size:0.78em; color:#6b7280;">
                                     <span>☐</span><span id="esl-prev-gdpr-msg"><?php echo wp_kses_post( $pv_gdpr2 ); ?></span>
@@ -2338,6 +2349,7 @@ function adaptive_test_settings_page_html() {
                             <a href="<?php echo esc_url( admin_url( 'options-general.php?page=adaptive-level-test&tab=logs' ) ); ?>" class="button button-secondary"><?php esc_html_e( 'Clear', 'adaptive-level-test' ); ?></a>
                         <?php endif; ?>
                     </form>
+                    <?php if ( $is_admin ) : ?>
                     <!-- Export -->
                     <form method="post" action="">
                         <input type="hidden" name="adaptive_test_action" value="export_logs_csv">
@@ -2345,7 +2357,9 @@ function adaptive_test_settings_page_html() {
                         <?php wp_nonce_field( 'adaptive_test_export_logs_nonce' ); ?>
                         <?php submit_button( __( 'Export CSV', 'adaptive-level-test' ), 'secondary', 'submit', false ); ?>
                     </form>
+                    <?php endif; ?>
                 </div>
+                <?php if ( $is_admin ) : ?>
                 <!-- Delete old -->
                 <form method="post" action="">
                     <input type="hidden" name="adaptive_test_action" value="delete_logs">
@@ -2354,17 +2368,20 @@ function adaptive_test_settings_page_html() {
                     <input type="number" name="log_days" value="30" style="width:60px;"> <?php esc_html_e( 'days', 'adaptive-level-test' ); ?>
                     <?php submit_button( __( 'Delete Old Attempts', 'adaptive-level-test' ), 'delete', 'submit', false ); ?>
                 </form>
+                <?php endif; ?>
             </div>
 
             <!-- Bulk-action form wraps the table -->
             <form method="post" action="" id="esl-logs-bulk-form">
+                <?php if ( $is_admin ) : ?>
                 <input type="hidden" name="adaptive_test_action" value="bulk_delete_logs">
                 <?php wp_nonce_field( 'adaptive_test_bulk_delete_logs_nonce' ); ?>
+                <?php endif; ?>
 
                 <table class="wp-list-table widefat fixed striped">
                     <thead>
                         <tr>
-                            <th style="width:32px;"><input type="checkbox" id="esl-select-all" title="<?php esc_attr_e( 'Select all', 'adaptive-level-test' ); ?>"></th>
+                            <?php if ( $is_admin ) : ?><th style="width:32px;"><input type="checkbox" id="esl-select-all" title="<?php esc_attr_e( 'Select all', 'adaptive-level-test' ); ?>"></th><?php endif; ?>
                             <th><?php echo adaptive_test_sort_link( 'date',      __( 'Date', 'adaptive-level-test' ),          $orderby, $order, $bank_filter, $email_filter ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></th>
                             <th><?php echo adaptive_test_sort_link( 'email',     __( 'Email', 'adaptive-level-test' ),         $orderby, $order, $bank_filter, $email_filter ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></th>
                             <th><?php echo adaptive_test_sort_link( 'bank_name', __( 'Question Bank', 'adaptive-level-test' ), $orderby, $order, $bank_filter, $email_filter ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></th>
@@ -2404,7 +2421,7 @@ function adaptive_test_settings_page_html() {
                             );
                         ?>
                             <tr>
-                                <td><input type="checkbox" name="log_ids[]" value="<?php echo esc_attr( (string) $log->id ); ?>"></td>
+                                <?php if ( $is_admin ) : ?><td><input type="checkbox" name="log_ids[]" value="<?php echo esc_attr( (string) $log->id ); ?>"></td><?php endif; ?>
                                 <td><?php echo esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( $log->date ) ) ); ?></td>
                                 <td><?php echo esc_html( $log->email ); ?></td>
                                 <td><?php echo esc_html( $log->bank_name ); ?></td>
@@ -2413,20 +2430,25 @@ function adaptive_test_settings_page_html() {
                                 <td><?php echo esc_html( $duration_fmt ); ?></td>
                                 <td style="white-space:nowrap;">
                                     <?php do_action( 'adaptive_test_log_row_actions', $log ); ?>
+                                    <?php if ( $is_admin ) : ?>
                                     <a href="<?php echo esc_url( $delete_url ); ?>" class="button button-small" style="color:#dc2626;" onclick="return confirm('<?php echo esc_js( __( 'Delete this attempt?', 'adaptive-level-test' ) ); ?>')"><?php esc_html_e( 'Delete', 'adaptive-level-test' ); ?></a>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
 
+                <?php if ( $is_admin ) : ?>
                 <div style="margin-top:8px;">
                     <button type="submit" class="button button-secondary"
                         onclick="return document.querySelectorAll('#esl-logs-bulk-form input[name=\'log_ids[]\']:checked').length > 0 || (alert('<?php echo esc_js( __( 'Please select at least one attempt.', 'adaptive-level-test' ) ); ?>'), false);"
                     ><?php esc_html_e( 'Delete Selected', 'adaptive-level-test' ); ?></button>
                 </div>
+                <?php endif; ?>
             </form>
 
+            <?php if ( $is_admin ) : ?>
             <script>
             document.getElementById('esl-select-all').addEventListener('change', function() {
                 document.querySelectorAll('#esl-logs-bulk-form input[name="log_ids[]"]').forEach(function(cb) {
@@ -2434,6 +2456,7 @@ function adaptive_test_settings_page_html() {
                 }, this);
             });
             </script>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
     <?php
@@ -2446,13 +2469,16 @@ function adaptive_test_settings_page_html() {
 function adaptive_test_add_dashboard_widget() {
     wp_add_dashboard_widget(
         'adaptive_level_test_stats',
-        __('ESL Test Statistics', 'adaptive-level-test'),
+        __('Adaptive Test Statistics', 'adaptive-level-test'),
         'adaptive_test_dashboard_widget_callback'
     );
 }
 add_action('wp_dashboard_setup', 'adaptive_test_add_dashboard_widget');
 
 function adaptive_test_dashboard_widget_callback() {
+    if ( ! current_user_can( 'edit_others_posts' ) ) {
+        return;
+    }
     global $wpdb;
     $logs_table = $wpdb->prefix . 'adaptive_attempt_logs';
 
@@ -2476,7 +2502,7 @@ function adaptive_test_dashboard_widget_callback() {
             echo '<li>';
             echo '<strong>' . esc_html( $test->level ) . '</strong> - ';
             echo esc_html( $test->email ) . ' ';
-            echo '<span style="color:#666; font-size:0.9em;">(' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $test->date ) ) ) . ')</span>';
+            echo '<span style="color:#666; font-size:0.9em;">(' . esc_html( wp_date( get_option( 'date_format' ), strtotime( $test->date ) ) ) . ')</span>';
             echo '</li>';
         }
         echo '</ul>';

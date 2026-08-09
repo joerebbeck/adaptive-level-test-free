@@ -166,11 +166,11 @@ function adaptive_test_submit_answers() {
     $bank_id      = isset( $_POST['bank_id'] )      ? absint( wp_unslash( $_POST['bank_id'] ) )      : 1;
     $batch_number = isset( $_POST['batch_number'] )  ? absint( wp_unslash( $_POST['batch_number'] ) ) : 1;
 
-    // Validate bank exists
+    // Validate bank exists — fetch name here to avoid a second query when sending the admin email.
     global $wpdb;
     $banks_table = $wpdb->prefix . 'adaptive_question_banks';
-    $bank_exists = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$banks_table} WHERE id = %d", $bank_id ) );
-    if ( ! $bank_exists ) {
+    $bank = $wpdb->get_row( $wpdb->prepare( "SELECT id, name FROM {$banks_table} WHERE id = %d", $bank_id ) );
+    if ( ! $bank ) {
         wp_send_json_error( __( 'Invalid question bank.', 'adaptive-level-test' ) );
     }
 
@@ -220,14 +220,13 @@ function adaptive_test_submit_answers() {
 
     // Score current batch for the up/down/stay decision (thresholds unchanged: ≥4 up, ≤2 down)
     $score         = 0;
-    $current_level = '';
+    $current_level = isset( $row_map[ $current_ids[0] ] ) ? $row_map[ $current_ids[0] ]->level : '';
     foreach ( $current_ids as $q_id ) {
         if ( ! isset( $row_map[ $q_id ] ) ) continue;
         $row = $row_map[ $q_id ];
         if ( strtolower( $answers[ $q_id ] ) === strtolower( $row->answer ) ) {
             $score++;
         }
-        $current_level = $row->level;
     }
 
     $levels              = [ 'A2', 'B1', 'B2', 'C1', 'C2' ];
@@ -306,7 +305,7 @@ function adaptive_test_submit_answers() {
         if ( ! empty( $admin_emails_raw ) ) {
             $admin_emails = array_filter( array_map( 'sanitize_email', array_map( 'trim', explode( ',', $admin_emails_raw ) ) ) );
             if ( ! empty( $admin_emails ) ) {
-                $bank_name           = $wpdb->get_var( $wpdb->prepare( "SELECT name FROM $banks_table WHERE id = %d", $bank_id ) );
+                $bank_name           = $bank->name;
                 $admin_subject       = get_option( 'adaptive_test_admin_email_subject' ) ?: __( 'New Level Test Completed', 'adaptive-level-test' );
                 $admin_body_template = get_option( 'adaptive_test_admin_email_body' ) ?: "<p>A student has completed the English level test.</p>\n<ul>\n<li><strong>Email:</strong> %email%</li>\n<li><strong>Result:</strong> %level%</li>\n<li><strong>Question Bank:</strong> %bank%</li>\n</ul>";
                 $admin_body          = str_replace( [ '%email%', '%level%', '%bank%' ], [ $email, $final_level, $bank_name ], $admin_body_template ) . $footer;
