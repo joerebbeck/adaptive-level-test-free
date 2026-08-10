@@ -401,8 +401,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const levelIndex    = levels.indexOf(level);
             const showErrorRate = !!adaptive_test_ajax.show_error_rate;
-            // Use the IRT-derived error rate if available, otherwise fall back to the admin static value
-            const errorRate     = (dynamicErrorRate != null) ? dynamicErrorRate : (adaptive_test_ajax.error_rate || 5);
+            const errorRate     = dynamicErrorRate != null ? dynamicErrorRate : 0;
 
             // Calculate scale visuals
             let scaleHtml = '<div class="esl-result-scale-container"><div class="esl-result-scale">';

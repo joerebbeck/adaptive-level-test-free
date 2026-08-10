@@ -498,7 +498,7 @@ function adaptive_test_handle_tool_actions() {
     // Reset After the Quiz Defaults
     if ( isset( $_POST['adaptive_test_action'] ) && 'reset_after' === $_POST['adaptive_test_action'] ) {
         check_admin_referer( 'adaptive_test_reset_after_nonce' );
-        $after_opts = [ 'show_error_rate', 'error_rate_label', 'error_rate',
+        $after_opts = [ 'show_error_rate', 'error_rate_label',
             'after_title', 'after_subheading', 'after_body',
             'after_title_color', 'after_title_size', 'after_title_weight',
             'after_subheading_color', 'after_subheading_size', 'after_subheading_weight',
@@ -582,7 +582,6 @@ function adaptive_test_register_settings() {
     // After — content
     register_setting( 'adaptive_test_after_options', 'adaptive_test_show_error_rate',  [ 'default' => 1, 'sanitize_callback' => 'absint' ] );
     register_setting( 'adaptive_test_after_options', 'adaptive_test_error_rate_label', [ 'sanitize_callback' => 'wp_kses_post' ] );
-    register_setting( 'adaptive_test_after_options', 'adaptive_test_error_rate',       [ 'default' => 5, 'sanitize_callback' => 'absint' ] );
     register_setting( 'adaptive_test_after_options', 'adaptive_test_after_title',      [ 'sanitize_callback' => 'wp_kses_post' ] );
     register_setting( 'adaptive_test_after_options', 'adaptive_test_after_subheading', [ 'sanitize_callback' => 'wp_kses_post' ] );
     register_setting( 'adaptive_test_after_options', 'adaptive_test_after_body',       [ 'sanitize_callback' => 'wp_kses_post' ] );
@@ -618,7 +617,7 @@ function adaptive_test_register_settings() {
     add_settings_field( 'adaptive_test_after_subheading', __( 'Subheading',     'adaptive-level-test' ), 'adaptive_test_after_subheading_cb', 'adaptive-level-test-after', 'adaptive_test_after_section' );
     add_settings_field( 'adaptive_test_after_body',       __( 'Body',           'adaptive-level-test' ), 'adaptive_test_after_body_cb',       'adaptive-level-test-after', 'adaptive_test_after_section' );
     add_settings_field( 'adaptive_test_show_error_rate',  __( 'Error Rate Display', 'adaptive-level-test' ), 'adaptive_test_show_error_rate_cb',  'adaptive-level-test-after', 'adaptive_test_after_section' );
-    add_settings_field( 'adaptive_test_error_rate',       __( 'Error Rate (%)', 'adaptive-level-test' ), 'adaptive_test_error_rate_cb',       'adaptive-level-test-after', 'adaptive_test_after_section' );
+    add_settings_field( 'adaptive_test_error_rate',       __( 'Error Rate Label', 'adaptive-level-test' ), 'adaptive_test_error_rate_cb',       'adaptive-level-test-after', 'adaptive_test_after_section' );
 
 
 
@@ -857,12 +856,9 @@ function adaptive_test_show_error_rate_cb() {
 function adaptive_test_error_rate_cb() {
     $default_label = __( 'Margin of Error: ±{rate}%', 'adaptive-level-test' );
     $label = get_option( 'adaptive_test_error_rate_label', $default_label );
-    $rate  = get_option( 'adaptive_test_error_rate', 5 );
     echo '<div id="esl-error-rate-cell">';
     adaptive_test_html_textarea( 'adaptive_test_error_rate_label', $label, 2, 'esl-error-rate-label' );
-    echo '<p class="description" style="margin-bottom:10px;">' . esc_html__( 'Use {rate} for the percentage.', 'adaptive-level-test' ) . '</p>';
-    echo '<input type="number" name="adaptive_test_error_rate" value="' . esc_attr( $rate ) . '" class="small-text" min="0" max="100"> %';
-    echo '<p class="description">' . esc_html__( 'Margin of error displayed on the results scale.', 'adaptive-level-test' ) . '</p>';
+    echo '<p class="description">' . esc_html__( 'Use {rate} for the computed error percentage from the test result.', 'adaptive-level-test' ) . '</p>';
     echo '</div>';
 }
 
@@ -1361,7 +1357,7 @@ function adaptive_test_preview_toggle_js() {
                 prevScaleBar.style.display = showErrRate ? '' : 'none';
                 if (showErrRate) {
                     prevScaleBar.style.background = resultColor;
-                    var errRate  = Math.max(0, parseInt(eslVal('adaptive_test_error_rate', '5')) || 0);
+                    var errRate  = 12; // preview uses a realistic example; actual value is computed by the test
                     var indWidth = Math.max(5, errRate * 2);
                     var leftPos  = 50 - (indWidth / 2);
                     prevScaleBar.style.width = indWidth + '%';
@@ -1374,7 +1370,7 @@ function adaptive_test_preview_toggle_js() {
                 if (showErrRate2) {
                     var labelEl  = document.getElementById('esl-error-rate-label');
                     var rawLabel = (labelEl && labelEl.value.trim()) ? labelEl.value : 'Margin of Error: ±{rate}%';
-                    var errRate2 = Math.max(0, parseInt(eslVal('adaptive_test_error_rate', '5')) || 0);
+                    var errRate2 = 12; // preview uses a realistic example; actual value is computed by the test
                     prevErrorMargin.textContent = rawLabel.replace('{rate}', errRate2);
                 }
             }
@@ -1440,7 +1436,7 @@ function adaptive_test_preview_toggle_js() {
         var errLabelEl = document.getElementById('esl-error-rate-label');
         if (errLabelEl) errLabelEl.addEventListener('input', update);
         eslBind(
-            '[name="adaptive_test_show_error_rate"],[name="adaptive_test_error_rate"],' +
+            '[name="adaptive_test_show_error_rate"],' +
             '[name="adaptive_test_after_title_color"],[name="adaptive_test_after_title_size"],[name="adaptive_test_after_title_weight"],' +
             '[name="adaptive_test_after_subheading_color"],[name="adaptive_test_after_subheading_size"],[name="adaptive_test_after_subheading_weight"],' +
             '[name="adaptive_test_after_body_color"],[name="adaptive_test_after_body_size"],[name="adaptive_test_after_body_weight"],' +
@@ -1938,7 +1934,7 @@ function adaptive_test_settings_page_html() {
                                 <div style="background:#e5e7eb; height:10px; border-radius:6px; position:relative; margin-bottom:28px;">
                                     <?php
                                     $pv_show_err  = (bool) get_option( 'adaptive_test_show_error_rate', 1 );
-                                    $pv_err_rate  = absint( get_option( 'adaptive_test_error_rate', 5 ) );
+                                    $pv_err_rate  = 12; // example value; actual rate is computed by the test
                                     $pv_ind_width = max( 5, $pv_err_rate * 2 );
                                     $pv_left_pos  = 50 - ( $pv_ind_width / 2 );
                                     ?>
