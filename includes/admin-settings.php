@@ -1511,19 +1511,31 @@ function adaptive_test_settings_page_html() {
                     <th><?php esc_html_e( 'ID', 'adaptive-level-test' ); ?></th>
                     <th><?php esc_html_e( 'Question', 'adaptive-level-test' ); ?></th>
                     <th><?php esc_html_e( 'Level', 'adaptive-level-test' ); ?></th>
-                    <th><?php esc_html_e( 'Answer', 'adaptive-level-test' ); ?></th>
+                    <th><?php esc_html_e( 'Options', 'adaptive-level-test' ); ?></th>
                     <th><?php esc_html_e( 'Actions', 'adaptive-level-test' ); ?></th>
                 </tr>
             </thead>
             <tbody>
-                <?php 
+                <?php
                 $questions = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_name WHERE bank_id = %d ORDER BY level ASC, id ASC", $current_bank_id));
                 foreach ( $questions as $q ) : ?>
                     <tr>
                         <td><?php echo absint( $q->id ); ?></td>
                         <td><?php echo esc_html( $q->question_text ); ?></td>
                         <td><span class="badge"><?php echo esc_html( $q->level ); ?></span></td>
-                        <td><?php echo esc_html( $q->answer ); ?></td>
+                        <td><?php
+                            $opts = json_decode( $q->options, true );
+                            if ( is_array( $opts ) ) {
+                                $parts = array_map( function( $opt ) use ( $q ) {
+                                    return $opt === $q->answer
+                                        ? '<u><strong>' . esc_html( $opt ) . '</strong></u>'
+                                        : esc_html( $opt );
+                                }, $opts );
+                                echo implode( ', ', $parts ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- each option is esc_html'd above; <u> and <strong> are safe literals
+                            } else {
+                                echo esc_html( $q->answer );
+                            }
+                        ?></td>
                         <td>
                             <a href="<?php echo esc_url( add_query_arg( [ 'action' => 'edit_question', 'id' => $q->id ] ) ); ?>"><?php esc_html_e( 'Edit', 'adaptive-level-test' ); ?></a> |
                             <?php if ( $current_bank_is_default ) : ?>
