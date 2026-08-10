@@ -418,7 +418,7 @@ function eslBind(selectors, update) {
             prevScaleBar.style.display = showErrRate ? '' : 'none';
             if (showErrRate) {
                 prevScaleBar.style.background = resultColor;
-                var errRate  = Math.max(0, parseInt(eslVal('adaptive_test_error_rate', '5')) || 0);
+                var errRate  = 12; // preview uses a realistic example; actual value is computed by the test
                 var indWidth = Math.max(5, errRate * 2);
                 var leftPos  = 50 - (indWidth / 2);
                 prevScaleBar.style.width = indWidth + '%';
@@ -431,7 +431,7 @@ function eslBind(selectors, update) {
             if (showErrRate2) {
                 var labelEl  = document.getElementById('esl-error-rate-label');
                 var rawLabel = (labelEl && labelEl.value.trim()) ? labelEl.value : 'Margin of Error: ±{rate}%';
-                var errRate2 = Math.max(0, parseInt(eslVal('adaptive_test_error_rate', '5')) || 0);
+                var errRate2 = 12; // preview uses a realistic example; actual value is computed by the test
                 prevErrorMargin.textContent = rawLabel.replace('{rate}', errRate2);
             }
         }
@@ -497,7 +497,7 @@ function eslBind(selectors, update) {
     var errLabelEl = document.getElementById('esl-error-rate-label');
     if (errLabelEl) errLabelEl.addEventListener('input', update);
     eslBind(
-        '[name="adaptive_test_show_error_rate"],[name="adaptive_test_error_rate"],' +
+        '[name="adaptive_test_show_error_rate"],' +
         '[name="adaptive_test_after_title_color"],[name="adaptive_test_after_title_size"],[name="adaptive_test_after_title_weight"],' +
         '[name="adaptive_test_after_subheading_color"],[name="adaptive_test_after_subheading_size"],[name="adaptive_test_after_subheading_weight"],' +
         '[name="adaptive_test_after_body_color"],[name="adaptive_test_after_body_size"],[name="adaptive_test_after_body_weight"],' +
