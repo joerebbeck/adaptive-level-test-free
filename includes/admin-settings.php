@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -976,6 +976,7 @@ function adaptive_test_admin_enqueue() {
         'adaptive-test-admin-inline',
         '(function(){var el=document.getElementById("esl-select-all");if(el){el.addEventListener("change",function(){document.querySelectorAll("#esl-logs-bulk-form input[name=\'log_ids[]\']").forEach(function(cb){cb.checked=this.checked;},this);});}})()'
     );
+
 }
 add_action( 'admin_enqueue_scripts', 'adaptive_test_admin_enqueue' );
 
@@ -1245,7 +1246,7 @@ function adaptive_test_settings_page_html() {
                                     endforeach; ?>
                                 </div>
                             </div>
-                            <button id="esl-encouragement-eye" title="<?php esc_attr_e( 'Preview encouragement animation', 'adaptive-level-test' ); ?>" style="display:block;margin:10px auto 0;background:none;border:1px solid #ddd;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:0.78em;color:#6b7280;line-height:1.6;">&#128065; <?php esc_html_e( 'Preview encouragement', 'adaptive-level-test' ); ?></button>
+                            <?php do_action( 'adaptive_test_during_preview_footer' ); ?>
                         </div>
 
                         <?php elseif ( 'after' === $active_sub ) :
