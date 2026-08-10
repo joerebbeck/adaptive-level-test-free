@@ -370,7 +370,7 @@ function adaptive_test_handle_tool_actions() {
         $wpdb->query( "TRUNCATE TABLE {$table_name}" );
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared
         $wpdb->query( "TRUNCATE TABLE {$banks_table}" );
-        $wpdb->insert( $banks_table, [ 'name' => 'Default Question Bank', 'is_default' => 1 ] );
+        $wpdb->insert( $banks_table, [ 'name' => 'English A2-C2 - Bank 150', 'is_default' => 1 ] );
         $wpdb->query( 'COMMIT' ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared
         
         // Seed
