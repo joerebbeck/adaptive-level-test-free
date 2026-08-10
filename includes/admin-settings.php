@@ -1306,42 +1306,6 @@ function adaptive_test_preview_toggle_js() {
         update();
     })();
 
-    // Encouragement preview demo — eye button on During preview
-    (function() {
-        var eyeBtn = document.getElementById('esl-encouragement-eye');
-        if (!eyeBtn) return;
-        eyeBtn.addEventListener('click', function() {
-            var card = document.getElementById('esl-prev-card');
-            if (!card) return;
-            // Toggle off if already running
-            var existing = document.getElementById('esl-prev-encouragement');
-            if (existing) { existing.remove(); return; }
-            var p   = eslPrimary || '#2563eb';
-            var tri = 'width:0;height:0;border-top:10px solid transparent;border-bottom:10px solid transparent;';
-            var demo = document.createElement('div');
-            demo.id = 'esl-prev-encouragement';
-            demo.style.cssText = 'position:absolute;inset:0;background:rgba(255,255,255,0.96);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;border-radius:inherit;transition:opacity 0.3s ease;';
-            demo.innerHTML =
-                '<div style="width:90%;height:28px;position:relative;margin-bottom:20px;">' +
-                    '<div id="esl-demo-l" style="position:absolute;top:50%;left:0%;transform:translateY(-50%);transition:left 1.2s ease;' + tri + 'border-left:16px solid ' + p + ';"></div>' +
-                    '<div id="esl-demo-dot" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;background:#f59e0b;border:2px solid #d97706;box-sizing:border-box;transition:transform 0.5s ease,opacity 0.5s ease;"></div>' +
-                    '<div id="esl-demo-r" style="position:absolute;top:50%;right:0%;transform:translateY(-50%);transition:right 1.2s ease;' + tri + 'border-right:16px solid ' + p + ';"></div>' +
-                '</div>' +
-                '<p style="font-size:0.88em;color:#6b7280;font-style:italic;margin:0;">Mapping your ability…</p>';
-            card.appendChild(demo);
-            var L   = demo.querySelector('#esl-demo-l');
-            var R   = demo.querySelector('#esl-demo-r');
-            var dot = demo.querySelector('#esl-demo-dot');
-            setTimeout(function() { L.style.left = '35%'; R.style.right = '35%'; }, 80);
-            setTimeout(function() {
-                dot.style.transform = 'translate(-50%,-50%) scale(3.5)';
-                dot.style.opacity   = '0';
-            }, 1600);
-            setTimeout(function() { demo.style.opacity = '0'; }, 2100);
-            setTimeout(function() { if (demo.parentNode) demo.remove(); }, 2450);
-        });
-    })();
-
     // Live Preview — After the Quiz
     (function() {
         var prevCard          = document.getElementById('esl-prev-card');
@@ -1919,7 +1883,7 @@ function adaptive_test_settings_page_html() {
                                     endforeach; ?>
                                 </div>
                             </div>
-                            <button id="esl-encouragement-eye" title="<?php esc_attr_e( 'Preview encouragement animation', 'adaptive-level-test' ); ?>" style="display:block;margin:10px auto 0;background:none;border:1px solid #ddd;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:0.78em;color:#6b7280;line-height:1.6;">&#128065; <?php esc_html_e( 'Preview encouragement', 'adaptive-level-test' ); ?></button>
+                            <?php do_action( 'adaptive_test_during_preview_footer' ); ?>
                         </div>
 
                         <?php elseif ( 'after' === $active_sub ) :
