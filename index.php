@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Adaptive Level Test
- * Plugin URI:  https://idiomiq.com
+ * Plugin URI:  https://idiomiq.com/adaptive-level-test
  * Description: An adaptive test for ESL students to determine their CEFR level (A2-C2).
  * Version:     1.3.0
  * Author:      IdiomIQ
