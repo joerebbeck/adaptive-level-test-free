@@ -188,7 +188,7 @@ add_action( 'wp_enqueue_scripts', 'adaptive_test_enqueue_scripts' );
 
 function adaptive_test_plugin_action_links( $links ) {
     $settings_link = '<a href="' . esc_url( admin_url( 'options-general.php?page=adaptive-level-test' ) ) . '">' . esc_html__( 'Settings', 'adaptive-level-test' ) . '</a>';
-    $upgrade_link  = '<a href="https://idiomiq.com/adaptive-level-test/#upgrade" target="_blank" rel="noopener" style="color:#f59e0b;font-weight:600;">' . esc_html__( 'Go Pro', 'adaptive-level-test' ) . '</a>';
+    $upgrade_link  = '<a href="https://checkout.freemius.com/plugin/36648/plan/60691/" target="_blank" rel="noopener" style="color:#f59e0b;font-weight:600;">' . esc_html__( 'Go Pro', 'adaptive-level-test' ) . '</a>';
     array_unshift( $links, $upgrade_link, $settings_link );
     return $links;
 }
