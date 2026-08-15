@@ -610,7 +610,7 @@ function adaptive_test_register_settings() {
     add_settings_field( 'adaptive_test_during_question_align', __( 'Question Alignment','adaptive-level-test' ), 'adaptive_test_during_question_align_cb', 'adaptive-level-test-during', 'adaptive_test_during_section' );
     add_settings_field( 'adaptive_test_during_options_align',  __( 'Options Alignment', 'adaptive-level-test' ), 'adaptive_test_during_options_align_cb',  'adaptive-level-test-during', 'adaptive_test_during_section' );
     add_settings_field( 'adaptive_test_during_dyslexic',    __( 'Dyslexia Toggle', 'adaptive-level-test' ), 'adaptive_test_during_dyslexic_cb',    'adaptive-level-test-during', 'adaptive_test_during_section' );
-    add_settings_field( 'adaptive_test_encouragement',       __( 'Encouragement',   'adaptive-level-test' ), 'adaptive_test_encouragement_cb',       'adaptive-level-test-during', 'adaptive_test_during_section' );
+
 
 
     // After tab — content
@@ -896,9 +896,6 @@ function adaptive_test_during_dyslexic_cb() {
     echo '</div>';
 }
 
-function adaptive_test_encouragement_cb() {
-    echo '<p>' . esc_html__( 'Encouragement overlay is a Pro feature.', 'adaptive-level-test' ) . '</p>';
-}
 
 function adaptive_test_primary_color_cb() {
     $value = get_option( 'adaptive_test_primary_color', '' ) ?: '#2563eb';
