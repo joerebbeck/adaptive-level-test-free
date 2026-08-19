@@ -132,12 +132,10 @@ function adaptive_test_start_test() {
         wp_send_json_error( __( 'Invalid question bank.', 'adaptive-level-test' ) );
     }
 
-    // Start at B1 level as per project instructions
-    // We fetch a batch of 5 questions to allow the frontend to iterate through them
-    $questions = adaptive_test_get_questions('B1', 5, $bank_id);
+    $questions = adaptive_test_get_questions('A2', 5, $bank_id);
 
     if (empty($questions)) {
-        wp_send_json_error(__('No questions found for the starting level (B1).', 'adaptive-level-test'));
+        wp_send_json_error(__('No questions found for the starting level (A2).', 'adaptive-level-test'));
     }
 
     wp_send_json_success(['questions' => $questions]);

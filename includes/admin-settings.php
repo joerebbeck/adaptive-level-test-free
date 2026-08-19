@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -8,26 +8,6 @@ if (!defined('ABSPATH')) {
 // interpolation is safe. NoCaching is suppressed because these are admin-only write paths
 // and one-off reads where a cache would add complexity without benefit.
 // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-
-function adaptive_test_bank_limit_reached() {
-    // Pro plugin hooks adaptive_test_bank_limit to return false, removing the cap.
-    if ( ! apply_filters( 'adaptive_test_bank_limit', true ) ) {
-        return false;
-    }
-    global $wpdb;
-    $count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}adaptive_question_banks" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-    return $count >= 3;
-}
-
-function adaptive_test_question_limit_reached( $bank_id ) {
-    // Pro plugin hooks adaptive_test_question_limit to return false, removing the cap.
-    if ( ! apply_filters( 'adaptive_test_question_limit', true ) ) {
-        return false;
-    }
-    global $wpdb;
-    $count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}adaptive_questions WHERE bank_id = %d", $bank_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-    return $count >= 150;
-}
 
 // ── SAVE CHANGE TRACKING ──────────────────────────────────────────────────────
 
@@ -97,10 +77,6 @@ function adaptive_test_handle_question_actions() {
         if ( ! empty( $_POST['question_id'] ) ) {
             $wpdb->update( $table_name, $data, [ 'id' => absint( wp_unslash( $_POST['question_id'] ) ) ] );
         } else {
-            if ( adaptive_test_question_limit_reached( $data['bank_id'] ) ) {
-                wp_safe_redirect( add_query_arg( [ 'message' => 'question_limit_reached', 'tab' => 'questions', 'bank_id' => $data['bank_id'] ], remove_query_arg( [ 'adaptive_test_action' ] ) ) );
-                exit;
-            }
             $wpdb->insert( $table_name, $data );
         }
         
@@ -131,11 +107,6 @@ function adaptive_test_handle_question_actions() {
     // Handle Bank Actions
     if ( isset( $_POST['adaptive_test_action'] ) && 'save_bank' === $_POST['adaptive_test_action'] ) {
         check_admin_referer( 'adaptive_test_save_bank_nonce' );
-
-        if ( adaptive_test_bank_limit_reached() ) {
-            wp_safe_redirect( add_query_arg( [ 'message' => 'bank_limit_reached', 'tab' => 'questions' ], remove_query_arg( 'adaptive_test_action' ) ) );
-            exit;
-        }
 
         global $wpdb;
         $banks_table = $wpdb->prefix . 'adaptive_question_banks';
@@ -195,11 +166,6 @@ function adaptive_test_handle_question_actions() {
         $banks_table     = $wpdb->prefix . 'adaptive_question_banks';
         $questions_table = $wpdb->prefix . 'adaptive_questions';
         $source_id       = absint( wp_unslash( $_GET['id'] ) );
-
-        if ( adaptive_test_bank_limit_reached() ) {
-            wp_safe_redirect( add_query_arg( [ 'message' => 'bank_limit_reached', 'tab' => 'questions' ], remove_query_arg( [ 'action', 'id' ] ) ) );
-            exit;
-        }
 
         // 1. Get Source Bank
         $source_bank = $wpdb->get_row($wpdb->prepare("SELECT * FROM $banks_table WHERE id = %d", $source_id));
@@ -304,22 +270,12 @@ function adaptive_test_handle_tool_actions() {
             $handle = fopen( $_FILES['csv_file']['tmp_name'], 'r' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- WP_Filesystem cannot read uploaded tmp files; tmp_name is a server-generated path, not user-supplied content
             $header = fgetcsv($handle); // Skip header
 
-            $free_limit    = 150;
-            $current_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}adaptive_questions WHERE bank_id = %d", $bank_id ) );
-            $has_limit     = (bool) apply_filters( 'adaptive_test_question_limit', true );
-            $remaining     = $has_limit ? max( 0, $free_limit - $current_count ) : PHP_INT_MAX;
-
             $imported = 0;
             $skipped  = 0;
             $allowed_levels = [ 'A2', 'B1', 'B2', 'C1', 'C2' ];
 
             while (($row = fgetcsv($handle)) !== FALSE) {
                 if (count($row) < 5) continue;
-
-                if ( $has_limit && $imported >= $remaining ) {
-                    $skipped++;
-                    continue;
-                }
 
                 // Reject rows whose level is not a recognised CEFR level — invalid levels
                 // cause undefined behaviour in the IRT estimator and adaptive algorithm.
@@ -498,7 +454,7 @@ function adaptive_test_handle_tool_actions() {
     // Reset After the Quiz Defaults
     if ( isset( $_POST['adaptive_test_action'] ) && 'reset_after' === $_POST['adaptive_test_action'] ) {
         check_admin_referer( 'adaptive_test_reset_after_nonce' );
-        $after_opts = [ 'show_error_rate', 'error_rate_label',
+        $after_opts = [ 'show_error_rate', 'error_rate_label', 'error_rate',
             'after_title', 'after_subheading', 'after_body',
             'after_title_color', 'after_title_size', 'after_title_weight',
             'after_subheading_color', 'after_subheading_size', 'after_subheading_weight',
@@ -582,6 +538,7 @@ function adaptive_test_register_settings() {
     // After — content
     register_setting( 'adaptive_test_after_options', 'adaptive_test_show_error_rate',  [ 'default' => 1, 'sanitize_callback' => 'absint' ] );
     register_setting( 'adaptive_test_after_options', 'adaptive_test_error_rate_label', [ 'sanitize_callback' => 'wp_kses_post' ] );
+    register_setting( 'adaptive_test_after_options', 'adaptive_test_error_rate',       [ 'default' => 5, 'sanitize_callback' => 'absint' ] );
     register_setting( 'adaptive_test_after_options', 'adaptive_test_after_title',      [ 'sanitize_callback' => 'wp_kses_post' ] );
     register_setting( 'adaptive_test_after_options', 'adaptive_test_after_subheading', [ 'sanitize_callback' => 'wp_kses_post' ] );
     register_setting( 'adaptive_test_after_options', 'adaptive_test_after_body',       [ 'sanitize_callback' => 'wp_kses_post' ] );
@@ -611,13 +568,14 @@ function adaptive_test_register_settings() {
     add_settings_field( 'adaptive_test_during_dyslexic',    __( 'Dyslexia Toggle', 'adaptive-level-test' ), 'adaptive_test_during_dyslexic_cb',    'adaptive-level-test-during', 'adaptive_test_during_section' );
 
 
+
     // After tab — content
     add_settings_section( 'adaptive_test_after_section', '', null, 'adaptive-level-test-after' );
     add_settings_field( 'adaptive_test_after_title',      __( 'Title',          'adaptive-level-test' ), 'adaptive_test_after_title_cb',      'adaptive-level-test-after', 'adaptive_test_after_section' );
     add_settings_field( 'adaptive_test_after_subheading', __( 'Subheading',     'adaptive-level-test' ), 'adaptive_test_after_subheading_cb', 'adaptive-level-test-after', 'adaptive_test_after_section' );
     add_settings_field( 'adaptive_test_after_body',       __( 'Body',           'adaptive-level-test' ), 'adaptive_test_after_body_cb',       'adaptive-level-test-after', 'adaptive_test_after_section' );
     add_settings_field( 'adaptive_test_show_error_rate',  __( 'Error Rate Display', 'adaptive-level-test' ), 'adaptive_test_show_error_rate_cb',  'adaptive-level-test-after', 'adaptive_test_after_section' );
-    add_settings_field( 'adaptive_test_error_rate',       __( 'Error Rate Label', 'adaptive-level-test' ), 'adaptive_test_error_rate_cb',       'adaptive-level-test-after', 'adaptive_test_after_section' );
+    add_settings_field( 'adaptive_test_error_rate',       __( 'Error Rate (%)', 'adaptive-level-test' ), 'adaptive_test_error_rate_cb',       'adaptive-level-test-after', 'adaptive_test_after_section' );
 
 
 
@@ -856,9 +814,12 @@ function adaptive_test_show_error_rate_cb() {
 function adaptive_test_error_rate_cb() {
     $default_label = __( 'Margin of Error: ±{rate}%', 'adaptive-level-test' );
     $label = get_option( 'adaptive_test_error_rate_label', $default_label );
+    $rate  = get_option( 'adaptive_test_error_rate', 5 );
     echo '<div id="esl-error-rate-cell">';
     adaptive_test_html_textarea( 'adaptive_test_error_rate_label', $label, 2, 'esl-error-rate-label' );
-    echo '<p class="description">' . esc_html__( 'Use {rate} for the computed error percentage from the test result.', 'adaptive-level-test' ) . '</p>';
+    echo '<p class="description" style="margin-bottom:10px;">' . esc_html__( 'Use {rate} for the percentage.', 'adaptive-level-test' ) . '</p>';
+    echo '<input type="number" name="adaptive_test_error_rate" value="' . esc_attr( $rate ) . '" class="small-text" min="0" max="100"> %';
+    echo '<p class="description">' . esc_html__( 'Margin of error displayed on the results scale.', 'adaptive-level-test' ) . '</p>';
     echo '</div>';
 }
 
@@ -960,523 +921,70 @@ function adaptive_test_add_admin_menu() {
 }
 add_action('admin_menu', 'adaptive_test_add_admin_menu');
 
-function adaptive_test_preview_toggle_js() {
+function adaptive_test_admin_enqueue() {
     $screen = get_current_screen();
-    if ( ! $screen || 'settings_page_adaptive-level-test' !== $screen->id ) {
-        return;
-    }
-    ?>
-    <style>
-    @font-face {
-        font-family: 'OpenDyslexic';
-        src: url('<?php echo esc_url( plugin_dir_url( __FILE__ ) . '../assets/fonts/OpenDyslexic-Regular.woff2' ); ?>') format('woff2');
-        font-weight: normal; font-style: normal; font-display: swap;
-    }
-    #esl-prev-card.esl-dyslexic #esl-prev-question,
-    #esl-prev-card.esl-dyslexic .esl-prev-option {
-        font-family: 'OpenDyslexic', sans-serif;
-    }
-    </style>
-    <script>
-    function eslTogglePreview(id) {
-        var textarea = document.getElementById(id);
-        var preview  = document.getElementById(id + '-preview');
-        var btn      = document.getElementById(id + '-btn');
-        var editMode = textarea.style.display !== 'none';
-        textarea.style.display = editMode ? 'none' : '';
-        preview.style.display  = editMode ? '' : 'none';
-        if (editMode) { preview.textContent = textarea.value; }
-        btn.textContent = editMode ? '<?php echo esc_js( __( 'Edit HTML', 'adaptive-level-test' ) ); ?>' : '<?php echo esc_js( __( 'Preview', 'adaptive-level-test' ) ); ?>';
-    }
+    if ( ! $screen || 'settings_page_adaptive-level-test' !== $screen->id ) return;
 
-    (function() {
-        function eslConsentAccordion(cbId, cellId) {
-            var cb   = document.getElementById(cbId);
-            var cell = document.getElementById(cellId);
-            if (!cb || !cell) return;
-            var row = cell.closest('tr');
-            if (!row) return;
-            row.style.display = cb.checked ? '' : 'none';
-            cb.addEventListener('change', function() {
-                row.style.display = cb.checked ? '' : 'none';
-            });
-        }
-        function eslConsentAccordionDiv(cbId, divId) {
-            var cb  = document.getElementById(cbId);
-            var div = document.getElementById(divId);
-            if (!cb || !div) return;
-            div.style.display = cb.checked ? '' : 'none';
-            cb.addEventListener('change', function() {
-                div.style.display = cb.checked ? '' : 'none';
-            });
-        }
-        eslConsentAccordion('esl-gdpr2-cb', 'esl-gdpr2-msg-cell');
-        eslConsentAccordion('esl-counter-cb', 'esl-counter-format-row');
-        eslConsentAccordion('esl-show-error-rate-cb', 'esl-error-rate-cell');
-        eslConsentAccordionDiv('esl-dyslexic-cb', 'esl-dyslexic-details');
-        eslConsentAccordionDiv('esl-share-enabled-cb', 'esl-share-details');
-    })();
+    // ── CSS ──────────────────────────────────────────────────────────────────
+    wp_register_style( 'adaptive-test-admin', false, [], ADAPTIVE_LEVEL_TEST_VERSION ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- version constant used above
+    wp_enqueue_style( 'adaptive-test-admin' );
 
-    // Primary colour from General Settings — used as fallback for any accent colour not explicitly overridden
-    var eslPrimary = '<?php echo esc_js( get_option( 'adaptive_test_primary_color', '' ) ?: '#2563eb' ); ?>';
+    $font_url   = esc_url( plugins_url( '../assets/fonts/OpenDyslexic-Regular.woff2', __FILE__ ) );
+    $inline_css  = "@font-face{font-family:'OpenDyslexic';src:url('{$font_url}')format('woff2');font-weight:normal;font-style:normal;font-display:swap;}";
+    $inline_css .= "#esl-prev-card.esl-dyslexic #esl-prev-question,#esl-prev-card.esl-dyslexic .esl-prev-option{font-family:'OpenDyslexic',sans-serif;}";
+    $inline_css .= '#esl-unsaved-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;align-items:center;justify-content:center;}';
+    $inline_css .= '#esl-unsaved-overlay.esl-visible{display:flex;}';
+    $inline_css .= '#esl-unsaved-dialog{background:#fff;border-radius:4px;padding:24px 28px;max-width:420px;width:90%;box-shadow:0 4px 24px rgba(0,0,0,.18);}';
+    $inline_css .= '#esl-unsaved-dialog h3{margin:0 0 8px;font-size:1rem;color:#1d2327;}';
+    $inline_css .= '#esl-unsaved-dialog p{margin:0 0 16px;color:#50575e;font-size:0.9rem;line-height:1.5;}';
+    $inline_css .= '#esl-unsaved-dialog ul{margin:0 0 20px;padding-left:20px;color:#50575e;font-size:0.9rem;}';
+    $inline_css .= '.esl-unsaved-actions{display:flex;gap:10px;justify-content:flex-end;}';
+    $inline_css .= '#esl-unsaved-leave{background:none;border:1px solid #c3c4c7;color:#50575e;padding:6px 14px;border-radius:3px;cursor:pointer;font-size:0.875rem;}';
+    $inline_css .= '#esl-unsaved-stay{background:#2271b1;border:none;color:#fff;padding:6px 14px;border-radius:3px;cursor:pointer;font-size:0.875rem;font-weight:600;}';
+    $inline_css .= '#esl-unsaved-stay:focus{outline:2px solid #2271b1;outline-offset:2px;}';
+    $inline_css .= '.esl-subnav a{display:inline-block;padding:5px 10px;margin-right:4px;margin-bottom:-1px;border:1px solid #c3c4c7;border-bottom:none;border-radius:0;text-decoration:none;color:#50575e;background:#dcdcde;font-size:14px;font-weight:600;line-height:1.71428571;}';
+    $inline_css .= '.esl-subnav a:hover{background:#fff;color:#1d2327;}';
+    $inline_css .= '.esl-subnav a.active{background:#f0f0f1;color:#1d2327;border-bottom:1px solid #f0f0f1;}';
+    wp_add_inline_style( 'adaptive-test-admin', $inline_css );
 
-    // Shared helper: read value from a named input, return fallback if not found
-    function eslVal(name, fallback) {
-        var el = document.querySelector('[name="' + name + '"]');
-        return el ? el.value : fallback;
-    }
-    function eslChecked(name) {
-        var el = document.querySelector('[name="' + name + '"]');
-        return el ? el.checked : false;
-    }
-    // Apply box card styles (bg, text, radius, border, shadow) to an element
-    function eslApplyBox(card, prefix) {
-        var bg  = eslVal(prefix + '_box_bg', '');
-        var txt = eslVal(prefix + '_box_text_color', '');
-        var rad = eslVal(prefix + '_box_border_radius', '');
-        var bw  = eslVal(prefix + '_box_border_width', '0');
-        var bc  = eslVal(prefix + '_box_border_color', '#e5e7eb');
-        var shd = eslChecked(prefix + '_box_shadow');
-        if (bg)  card.style.background   = bg;
-        if (txt) card.style.color        = txt;
-        if (rad) card.style.borderRadius = rad + 'px';
-        card.style.border    = parseInt(bw) > 0 ? bw + 'px solid ' + bc : 'none';
-        card.style.boxShadow = shd ? '0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -1px rgba(0,0,0,.06)' : 'none';
-    }
-    // Bind input+change events on all matching elements and call update()
-    function eslBind(selectors, update) {
-        document.querySelectorAll(selectors).forEach(function(el) {
-            el.addEventListener('input',  update);
-            el.addEventListener('change', update);
-        });
-    }
+    // ── JS ───────────────────────────────────────────────────────────────────
+    wp_enqueue_script(
+        'adaptive-test-admin-preview',
+        plugins_url( '../assets/js/admin-preview.js', __FILE__ ),
+        [],
+        ADAPTIVE_LEVEL_TEST_VERSION,
+        true
+    );
+    wp_localize_script( 'adaptive-test-admin-preview', 'eslAdminData', [
+        'primaryColor'  => get_option( 'adaptive_test_primary_color', '' ) ?: '#2563eb',
+        'labelEditHtml' => __( 'Edit HTML', 'adaptive-level-test' ),
+        'labelPreview'  => __( 'Preview', 'adaptive-level-test' ),
+    ] );
 
-    // Live Preview — Before the Quiz
-    (function() {
-        var prevCard     = document.getElementById('esl-prev-card');
-        var prevTitle    = document.getElementById('esl-prev-title');
-        if (!prevTitle) return;
-        var prevSubtitle = document.getElementById('esl-prev-subtitle');
-        var prevBody     = document.getElementById('esl-prev-body');
-        var prevEmail    = document.getElementById('esl-prev-email');
-        var prevBtn      = document.getElementById('esl-prev-btn');
-        var prevGdpr     = document.getElementById('esl-prev-gdpr');
-        var prevGdprMsg  = document.getElementById('esl-prev-gdpr-msg');
+    wp_enqueue_script(
+        'adaptive-test-admin-unsaved',
+        plugins_url( '../assets/js/admin-unsaved.js', __FILE__ ),
+        [],
+        ADAPTIVE_LEVEL_TEST_VERSION,
+        true
+    );
 
-        // Dynamic <style> for ::placeholder (can't be set inline)
-        var phStyle = document.createElement('style');
-        document.head.appendChild(phStyle);
-
-        function update() {
-            // Content
-            var t = document.getElementById('esl-start-title');
-            if (t && prevTitle) prevTitle.textContent = t.value;
-
-            var s = document.getElementById('esl-start-subtitle');
-            if (s && prevSubtitle) prevSubtitle.textContent = s.value;
-
-            var b = document.getElementById('esl-start-body');
-            if (b && prevBody) {
-                prevBody.textContent = b.value;
-                prevBody.style.display = b.value.trim() ? '' : 'none';
-            }
-
-            var ep = document.querySelector('[name="adaptive_test_start_email_placeholder"]');
-            if (ep && prevEmail) prevEmail.placeholder = ep.value;
-
-            var bt = document.querySelector('[name="adaptive_test_start_button_text"]');
-            if (bt && prevBtn) prevBtn.textContent = bt.value;
-
-            var cb = document.getElementById('esl-gdpr2-cb');
-            var gm = document.getElementById('esl-start-gdpr2');
-            if (cb && prevGdpr) {
-                prevGdpr.style.display = cb.checked ? 'flex' : 'none';
-                if (gm && prevGdprMsg) prevGdprMsg.textContent = gm.value;
-            }
-
-            // Title
-            if (prevTitle) {
-                prevTitle.style.color      = eslVal('adaptive_test_before_title_color',  '#1f2937');
-                prevTitle.style.fontSize   = eslVal('adaptive_test_before_title_size',   '28') + 'px';
-                prevTitle.style.fontWeight = eslVal('adaptive_test_before_title_weight', '700');
-            }
-            // Subtitle
-            if (prevSubtitle) {
-                prevSubtitle.style.color      = eslVal('adaptive_test_before_subtitle_color',  '#6b7280');
-                prevSubtitle.style.fontSize   = eslVal('adaptive_test_before_subtitle_size',   '16') + 'px';
-                prevSubtitle.style.fontWeight = eslVal('adaptive_test_before_subtitle_weight', '400');
-            }
-            // Body
-            if (prevBody) {
-                prevBody.style.color      = eslVal('adaptive_test_before_body_color',  '#6b7280');
-                prevBody.style.fontSize   = eslVal('adaptive_test_before_body_size',   '12') + 'px';
-                prevBody.style.fontWeight = eslVal('adaptive_test_before_body_weight', '400');
-            }
-            // Email input
-            if (prevEmail) {
-                var bw = eslVal('adaptive_test_before_input_border_width',  '2');
-                var br = eslVal('adaptive_test_before_input_border_radius', '12');
-                var bc = eslVal('adaptive_test_before_input_border_color',  '#e5e7eb');
-                var ps = eslVal('adaptive_test_before_input_placeholder_size', '16');
-                var pc = eslVal('adaptive_test_before_input_placeholder_color', '#9ca3af');
-                prevEmail.style.borderWidth  = bw + 'px';
-                prevEmail.style.borderStyle  = 'solid';
-                prevEmail.style.borderColor  = bc;
-                prevEmail.style.borderRadius = br + 'px';
-                prevEmail.style.fontSize     = ps + 'px';
-                phStyle.textContent = '#esl-prev-email::placeholder{color:' + pc + ';}';
-            }
-            // Consent
-            if (prevGdpr) {
-                prevGdpr.style.color      = eslVal('adaptive_test_before_consent_color',  '#6b7280');
-                prevGdpr.style.fontSize   = eslVal('adaptive_test_before_consent_size',   '13') + 'px';
-                prevGdpr.style.fontWeight = eslVal('adaptive_test_before_consent_weight', '400');
-            }
-            // Button
-            if (prevBtn) {
-                prevBtn.style.background   = eslVal('adaptive_test_before_btn_color',         eslPrimary);
-                prevBtn.style.color        = eslVal('adaptive_test_before_btn_text_color',    '#ffffff');
-                prevBtn.style.fontSize     = eslVal('adaptive_test_before_btn_size',          '16') + 'px';
-                prevBtn.style.fontWeight   = eslVal('adaptive_test_before_btn_weight',        '600');
-                prevBtn.style.borderColor  = eslVal('adaptive_test_before_btn_border_color',  eslPrimary);
-                prevBtn.style.borderWidth  = eslVal('adaptive_test_before_btn_border_width',  '2') + 'px';
-                prevBtn.style.borderRadius = eslVal('adaptive_test_before_btn_border_radius', '12') + 'px';
-                prevBtn.style.borderStyle  = 'solid';
-            }
-            // Box
-            if (prevCard) eslApplyBox(prevCard, 'adaptive_test_before');
-        }
-
-        ['esl-start-title','esl-start-subtitle','esl-start-body','esl-start-gdpr2'].forEach(function(id) {
-            var el = document.getElementById(id);
-            if (el) el.addEventListener('input', update);
-        });
-        document.getElementById('esl-gdpr2-cb') && document.getElementById('esl-gdpr2-cb').addEventListener('change', update);
-        eslBind(
-            '[name="adaptive_test_start_email_placeholder"],[name="adaptive_test_start_button_text"],' +
-            '[name="adaptive_test_before_title_color"],[name="adaptive_test_before_title_size"],[name="adaptive_test_before_title_weight"],' +
-            '[name="adaptive_test_before_subtitle_color"],[name="adaptive_test_before_subtitle_size"],[name="adaptive_test_before_subtitle_weight"],' +
-            '[name="adaptive_test_before_body_color"],[name="adaptive_test_before_body_size"],[name="adaptive_test_before_body_weight"],' +
-            '[name="adaptive_test_before_input_placeholder_color"],[name="adaptive_test_before_input_placeholder_size"],' +
-            '[name="adaptive_test_before_input_border_width"],[name="adaptive_test_before_input_border_radius"],[name="adaptive_test_before_input_border_color"],' +
-            '[name="adaptive_test_before_consent_color"],[name="adaptive_test_before_consent_size"],[name="adaptive_test_before_consent_weight"],' +
-            '[name="adaptive_test_before_btn_color"],[name="adaptive_test_before_btn_text_color"],[name="adaptive_test_before_btn_size"],[name="adaptive_test_before_btn_weight"],' +
-            '[name="adaptive_test_before_btn_border_color"],[name="adaptive_test_before_btn_border_width"],[name="adaptive_test_before_btn_border_radius"],' +
-            '[name="adaptive_test_before_box_bg"],[name="adaptive_test_before_box_text_color"],[name="adaptive_test_before_box_border_radius"],' +
-            '[name="adaptive_test_before_box_border_width"],[name="adaptive_test_before_box_border_color"],[name="adaptive_test_before_box_shadow"]',
-            update
-        );
-
-        update();
-    })();
-
-    // Live Preview — During the Quiz
-    (function() {
-        var prevCard = document.getElementById('esl-prev-card');
-        if (!prevCard || !document.querySelector('[name="adaptive_test_during_show_progress"]')) return;
-
-        var prevProgressWrap = document.getElementById('esl-prev-progress-wrap');
-        var prevProgressBar  = document.getElementById('esl-prev-progress-bar');
-        var prevCounter      = document.getElementById('esl-prev-counter');
-        var prevQuestion     = document.getElementById('esl-prev-question');
-
-        function update() {
-            var showProg = document.querySelector('[name="adaptive_test_during_show_progress"]');
-            if (prevProgressWrap) prevProgressWrap.style.display = (showProg && showProg.checked) ? '' : 'none';
-
-            if (prevProgressBar) prevProgressBar.style.background = eslVal('adaptive_test_during_progress_color', eslPrimary);
-
-            var showCtr = document.getElementById('esl-counter-cb');
-            var ctrFmt  = document.querySelector('[name="adaptive_test_during_counter_format"]');
-            if (prevCounter) {
-                prevCounter.style.display    = (showCtr && showCtr.checked) ? '' : 'none';
-                prevCounter.style.color      = eslVal('adaptive_test_during_counter_color',  '#6b7280');
-                prevCounter.style.fontSize   = eslVal('adaptive_test_during_counter_size',   '13') + 'px';
-                prevCounter.style.fontWeight = eslVal('adaptive_test_during_counter_weight', '400');
-                if (ctrFmt) prevCounter.textContent = ctrFmt.value.replace('%n%','2').replace('%total%','5');
-            }
-
-            if (prevQuestion) {
-                prevQuestion.style.textAlign  = eslVal('adaptive_test_during_question_align',  'center');
-                prevQuestion.style.color      = eslVal('adaptive_test_during_question_color',  '#1f2937');
-                prevQuestion.style.fontSize   = eslVal('adaptive_test_during_question_size',   '20') + 'px';
-                prevQuestion.style.fontWeight = eslVal('adaptive_test_during_question_weight', '600');
-            }
-
-            var optColor    = eslVal('adaptive_test_during_option_color',                    '#000000');
-            var selColor    = eslVal('adaptive_test_during_option_selected_color',          eslPrimary);
-            var selTxtColor = eslVal('adaptive_test_during_option_selected_text',           '#ffffff');
-            var selSz       = eslVal('adaptive_test_during_option_selected_size',           '15');
-            var selWt       = eslVal('adaptive_test_during_option_selected_weight',         '400');
-            var selBdrC     = eslVal('adaptive_test_during_option_selected_border_color',   eslPrimary);
-            var selBdrW     = eslVal('adaptive_test_during_option_selected_border_width',   '2');
-            var selBdrR     = eslVal('adaptive_test_during_option_selected_border_radius',  '12');
-            var optBw       = eslVal('adaptive_test_during_option_border_width',            '2');
-            var optRad      = eslVal('adaptive_test_during_option_border_radius',           '12');
-            var optBc       = eslVal('adaptive_test_during_option_border_color',            '#e5e7eb');
-            var optSz       = eslVal('adaptive_test_during_option_size',                    '15');
-            var optWt       = eslVal('adaptive_test_during_option_weight',                  '400');
-            var oAlign      = eslVal('adaptive_test_during_options_align',                  'center');
-            document.querySelectorAll('.esl-prev-option').forEach(function(o) {
-                var isSel = o.classList.contains('esl-prev-selected');
-                o.style.textAlign = oAlign;
-                if (isSel) {
-                    o.style.background   = selColor;
-                    o.style.color        = selTxtColor;
-                    o.style.fontSize     = selSz + 'px';
-                    o.style.fontWeight   = selWt;
-                    o.style.borderColor  = selBdrC;
-                    o.style.borderWidth  = selBdrW + 'px';
-                    o.style.borderRadius = selBdrR + 'px';
-                    o.style.borderStyle  = 'solid';
-                } else {
-                    o.style.background   = '';
-                    o.style.color        = optColor;
-                    o.style.fontSize     = optSz + 'px';
-                    o.style.fontWeight   = optWt;
-                    o.style.borderColor  = optBc;
-                    o.style.borderWidth  = optBw + 'px';
-                    o.style.borderRadius = optRad + 'px';
-                    o.style.borderStyle  = 'solid';
-                }
-            });
-
-            eslApplyBox(prevCard, 'adaptive_test_during');
-        }
-
-        eslBind(
-            '[name="adaptive_test_during_show_progress"],[name="adaptive_test_during_question_align"],' +
-            '[name="adaptive_test_during_question_color"],[name="adaptive_test_during_question_size"],[name="adaptive_test_during_question_weight"],' +
-            '[name="adaptive_test_during_options_align"],[name="adaptive_test_during_counter_format"],' +
-            '[name="adaptive_test_during_counter_color"],[name="adaptive_test_during_counter_size"],[name="adaptive_test_during_counter_weight"],' +
-            '[name="adaptive_test_during_progress_color"],' +
-            '[name="adaptive_test_during_option_color"],[name="adaptive_test_during_option_selected_color"],[name="adaptive_test_during_option_selected_text"],' +
-            '[name="adaptive_test_during_option_selected_size"],[name="adaptive_test_during_option_selected_weight"],' +
-            '[name="adaptive_test_during_option_selected_border_color"],[name="adaptive_test_during_option_selected_border_width"],[name="adaptive_test_during_option_selected_border_radius"],' +
-            '[name="adaptive_test_during_option_border_width"],[name="adaptive_test_during_option_border_radius"],[name="adaptive_test_during_option_border_color"],' +
-            '[name="adaptive_test_during_option_size"],[name="adaptive_test_during_option_weight"],' +
-            '[name="adaptive_test_during_box_bg"],[name="adaptive_test_during_box_border_radius"],' +
-            '[name="adaptive_test_during_box_border_width"],[name="adaptive_test_during_box_border_color"],[name="adaptive_test_during_box_shadow"]',
-            update
-        );
-        var ctrCb = document.getElementById('esl-counter-cb');
-        if (ctrCb) ctrCb.addEventListener('change', update);
-
-        // Dyslexic toggle visibility, label, and interactive font switching
-        var prevDyslexicToggle = document.getElementById('esl-prev-dyslexic-toggle');
-        if (prevDyslexicToggle) {
-            var dyslexicActive = false;
-            function updateDyslexic() {
-                var enabledCb  = document.querySelector('[name="adaptive_test_during_dyslexic_enabled"]');
-                var labelOffIn = document.querySelector('[name="adaptive_test_during_dyslexic_off"]');
-                var labelOnIn  = document.querySelector('[name="adaptive_test_during_dyslexic_on"]');
-                var labelOff   = (labelOffIn && labelOffIn.value.trim()) ? labelOffIn.value : 'Change to dyslexia friendly font';
-                var labelOn    = (labelOnIn  && labelOnIn.value.trim())  ? labelOnIn.value  : 'Change to regular font';
-                var dysEnabled = enabledCb && enabledCb.checked;
-                if (enabledCb) prevDyslexicToggle.style.display = dysEnabled ? '' : 'none';
-                if (prevProgressWrap) prevProgressWrap.style.marginTop = dysEnabled ? '28px' : '0';
-                prevDyslexicToggle.textContent = dyslexicActive ? labelOn : labelOff;
-                prevDyslexicToggle.style.color        = eslVal('adaptive_test_during_dyslexic_color',         '#6b7280');
-                prevDyslexicToggle.style.background   = eslVal('adaptive_test_during_dyslexic_bg',            '#ffffff');
-                prevDyslexicToggle.style.fontSize     = eslVal('adaptive_test_during_dyslexic_size',          '11') + 'px';
-                var bdw = eslVal('adaptive_test_during_dyslexic_border_width',  '1');
-                var bdc = eslVal('adaptive_test_during_dyslexic_border_color',  '#e5e7eb');
-                var bdr = eslVal('adaptive_test_during_dyslexic_border_radius', '20');
-                prevDyslexicToggle.style.border       = parseInt(bdw) > 0 ? bdw + 'px solid ' + bdc : 'none';
-                prevDyslexicToggle.style.borderRadius = bdr + 'px';
-            }
-            prevDyslexicToggle.addEventListener('click', function() {
-                dyslexicActive = !dyslexicActive;
-                prevCard.classList.toggle('esl-dyslexic', dyslexicActive);
-                updateDyslexic();
-            });
-            eslBind(
-                '[name="adaptive_test_during_dyslexic_enabled"],[name="adaptive_test_during_dyslexic_off"],[name="adaptive_test_during_dyslexic_on"],' +
-                '[name="adaptive_test_during_dyslexic_color"],[name="adaptive_test_during_dyslexic_bg"],[name="adaptive_test_during_dyslexic_size"],' +
-                '[name="adaptive_test_during_dyslexic_border_width"],[name="adaptive_test_during_dyslexic_border_color"],[name="adaptive_test_during_dyslexic_border_radius"]',
-                updateDyslexic
-            );
-            updateDyslexic();
-        }
-
-        update();
-    })();
-
-    // Live Preview — After the Quiz
-    (function() {
-        var prevCard          = document.getElementById('esl-prev-card');
-        var prevResultLevel   = document.getElementById('esl-prev-result-level');
-        if (!prevResultLevel) return;
-        var prevScaleBar      = document.getElementById('esl-prev-scale-bar');
-        var prevErrorMargin   = document.getElementById('esl-prev-error-margin');
-        var prevActiveLabel   = document.getElementById('esl-prev-active-label');
-        var prevRetake        = document.getElementById('esl-prev-retake');
-        var prevAfterTitle    = document.getElementById('esl-prev-after-title');
-        var prevAfterSub      = document.getElementById('esl-prev-after-subheading');
-        var prevAfterBody     = document.getElementById('esl-prev-after-body');
-        var prevShareSection  = document.getElementById('esl-prev-share-section');
-        var prevShareHeading  = document.getElementById('esl-prev-share-heading');
-        var prevShareBody     = document.getElementById('esl-prev-share-body');
-        var prevShareWa       = document.getElementById('esl-prev-share-wa');
-        var prevShareFb       = document.getElementById('esl-prev-share-fb');
-        var prevShareNative   = document.getElementById('esl-prev-share-native');
-        var prevShareCopy     = document.getElementById('esl-prev-share-copy');
-
-        function update() {
-            // Title content + styling
-            var titleEl = document.getElementById('esl-after-title');
-            if (titleEl && prevAfterTitle) prevAfterTitle.textContent = titleEl.value;
-            if (prevAfterTitle) {
-                prevAfterTitle.style.color      = eslVal('adaptive_test_after_title_color',  '#1f2937');
-                prevAfterTitle.style.fontSize   = eslVal('adaptive_test_after_title_size',   '24') + 'px';
-                prevAfterTitle.style.fontWeight = eslVal('adaptive_test_after_title_weight', '700');
-            }
-            // Subheading content + styling
-            var subEl = document.getElementById('esl-after-subheading');
-            if (subEl && prevAfterSub) prevAfterSub.textContent = subEl.value;
-            if (prevAfterSub) {
-                prevAfterSub.style.color      = eslVal('adaptive_test_after_subheading_color',  '#6b7280');
-                prevAfterSub.style.fontSize   = eslVal('adaptive_test_after_subheading_size',   '16') + 'px';
-                prevAfterSub.style.fontWeight = eslVal('adaptive_test_after_subheading_weight', '400');
-            }
-            // Body content + styling
-            var bodyEl = document.getElementById('esl-after-body');
-            if (bodyEl && prevAfterBody) prevAfterBody.textContent = bodyEl.value;
-            if (prevAfterBody) {
-                prevAfterBody.style.color      = eslVal('adaptive_test_after_body_color',  '#6b7280');
-                prevAfterBody.style.fontSize   = eslVal('adaptive_test_after_body_size',   '14') + 'px';
-                prevAfterBody.style.fontWeight = eslVal('adaptive_test_after_body_weight', '400');
-            }
-
-            var resultColor = eslVal('adaptive_test_after_result_color', eslPrimary);
-            prevResultLevel.style.color      = resultColor;
-            prevResultLevel.style.fontSize   = eslVal('adaptive_test_after_result_size',   '64') + 'px';
-            prevResultLevel.style.fontWeight = eslVal('adaptive_test_after_result_weight', '700');
-            if (prevScaleBar) {
-                var showErrRate = eslChecked('adaptive_test_show_error_rate');
-                prevScaleBar.style.display = showErrRate ? '' : 'none';
-                if (showErrRate) {
-                    prevScaleBar.style.background = resultColor;
-                    var errRate  = 12; // preview uses a realistic example; actual value is computed by the test
-                    var indWidth = Math.max(5, errRate * 2);
-                    var leftPos  = 50 - (indWidth / 2);
-                    prevScaleBar.style.width = indWidth + '%';
-                    prevScaleBar.style.left  = leftPos  + '%';
-                }
-            }
-            if (prevErrorMargin) {
-                var showErrRate2 = eslChecked('adaptive_test_show_error_rate');
-                prevErrorMargin.style.display = showErrRate2 ? '' : 'none';
-                if (showErrRate2) {
-                    var labelEl  = document.getElementById('esl-error-rate-label');
-                    var rawLabel = (labelEl && labelEl.value.trim()) ? labelEl.value : 'Margin of Error: ±{rate}%';
-                    var errRate2 = 12; // preview uses a realistic example; actual value is computed by the test
-                    prevErrorMargin.textContent = rawLabel.replace('{rate}', errRate2);
-                }
-            }
-            if (prevActiveLabel) prevActiveLabel.style.color   = resultColor;
-
-            if (prevRetake) {
-                prevRetake.style.background   = eslVal('adaptive_test_after_retake_color',         eslPrimary);
-                prevRetake.style.color        = eslVal('adaptive_test_after_retake_text_color',     '#ffffff');
-                prevRetake.style.fontSize     = eslVal('adaptive_test_after_retake_size',           '16') + 'px';
-                prevRetake.style.fontWeight   = eslVal('adaptive_test_after_retake_weight',         '600');
-                prevRetake.style.borderColor  = eslVal('adaptive_test_after_retake_border_color',   eslPrimary);
-                prevRetake.style.borderWidth  = eslVal('adaptive_test_after_retake_border_width',   '2') + 'px';
-                prevRetake.style.borderRadius = eslVal('adaptive_test_after_retake_border_radius',  '8') + 'px';
-                prevRetake.style.borderStyle  = 'solid';
-            }
-
-            if (prevCard) eslApplyBox(prevCard, 'adaptive_test_after');
-
-            // Share section (Pro only)
-            if (prevShareSection) {
-                prevShareSection.style.display = 'none';
-                if (prevShareHeading) {
-                    var shIn = document.querySelector('[name="adaptive_test_after_share_heading"]');
-                    if (shIn) prevShareHeading.textContent = shIn.value;
-                    prevShareHeading.style.color      = eslVal('adaptive_test_after_share_heading_color',  '#1f2937');
-                    prevShareHeading.style.fontSize   = eslVal('adaptive_test_after_share_heading_size',   '16') + 'px';
-                    prevShareHeading.style.fontWeight = eslVal('adaptive_test_after_share_heading_weight', '600');
-                }
-                if (prevShareBody) {
-                    var sbIn = document.querySelector('[name="adaptive_test_after_share_body"]');
-                    if (sbIn) prevShareBody.textContent = sbIn.value;
-                    prevShareBody.style.color      = eslVal('adaptive_test_after_share_body_color',  '#6b7280');
-                    prevShareBody.style.fontSize   = eslVal('adaptive_test_after_share_body_size',   '13') + 'px';
-                    prevShareBody.style.fontWeight = eslVal('adaptive_test_after_share_body_weight', '400');
-                }
-                if (prevShareWa) {
-                    var waIn = document.querySelector('[name="adaptive_test_after_share_whatsapp"]');
-                    if (waIn && waIn.value.trim()) prevShareWa.textContent = waIn.value;
-                }
-                if (prevShareFb) {
-                    var fbIn = document.querySelector('[name="adaptive_test_after_share_facebook"]');
-                    if (fbIn && fbIn.value.trim()) prevShareFb.textContent = fbIn.value;
-                }
-                if (prevShareNative) {
-                    var ntIn = document.querySelector('[name="adaptive_test_after_share_native"]');
-                    if (ntIn && ntIn.value.trim()) prevShareNative.textContent = ntIn.value;
-                    prevShareNative.style.background = eslVal('adaptive_test_after_share_native_bg',    '#000000');
-                    prevShareNative.style.color      = eslVal('adaptive_test_after_share_native_color', '#ffffff');
-                }
-                if (prevShareCopy) {
-                    var cpIn = document.querySelector('[name="adaptive_test_after_share_copy"]');
-                    if (cpIn && cpIn.value.trim()) prevShareCopy.textContent = cpIn.value;
-                    prevShareCopy.style.background = eslVal('adaptive_test_after_share_copy_bg',    '#f3f4f6');
-                    prevShareCopy.style.color      = eslVal('adaptive_test_after_share_copy_color', '#374151');
-                }
-            }
-        }
-
-        ['esl-after-title','esl-after-subheading','esl-after-body'].forEach(function(id) {
-            var el = document.getElementById(id);
-            if (el) el.addEventListener('input', update);
-        });
-        var errLabelEl = document.getElementById('esl-error-rate-label');
-        if (errLabelEl) errLabelEl.addEventListener('input', update);
-        eslBind(
-            '[name="adaptive_test_show_error_rate"],' +
-            '[name="adaptive_test_after_title_color"],[name="adaptive_test_after_title_size"],[name="adaptive_test_after_title_weight"],' +
-            '[name="adaptive_test_after_subheading_color"],[name="adaptive_test_after_subheading_size"],[name="adaptive_test_after_subheading_weight"],' +
-            '[name="adaptive_test_after_body_color"],[name="adaptive_test_after_body_size"],[name="adaptive_test_after_body_weight"],' +
-            '[name="adaptive_test_after_result_color"],[name="adaptive_test_after_result_size"],[name="adaptive_test_after_result_weight"],' +
-            '[name="adaptive_test_after_retake_color"],[name="adaptive_test_after_retake_text_color"],[name="adaptive_test_after_retake_size"],[name="adaptive_test_after_retake_weight"],' +
-            '[name="adaptive_test_after_retake_border_color"],[name="adaptive_test_after_retake_border_width"],[name="adaptive_test_after_retake_border_radius"],' +
-            '[name="adaptive_test_after_box_bg"],[name="adaptive_test_after_box_text_color"],[name="adaptive_test_after_box_border_radius"],' +
-            '[name="adaptive_test_after_box_border_width"],[name="adaptive_test_after_box_border_color"],[name="adaptive_test_after_box_shadow"],' +
-            '[name="adaptive_test_after_share_enabled"],' +
-            '[name="adaptive_test_after_share_heading"],[name="adaptive_test_after_share_heading_color"],[name="adaptive_test_after_share_heading_size"],[name="adaptive_test_after_share_heading_weight"],' +
-            '[name="adaptive_test_after_share_body"],[name="adaptive_test_after_share_body_color"],[name="adaptive_test_after_share_body_size"],[name="adaptive_test_after_share_body_weight"],' +
-            '[name="adaptive_test_after_share_whatsapp"],[name="adaptive_test_after_share_facebook"],' +
-            '[name="adaptive_test_after_share_native"],[name="adaptive_test_after_share_native_bg"],[name="adaptive_test_after_share_native_color"],' +
-            '[name="adaptive_test_after_share_copy"],[name="adaptive_test_after_share_copy_bg"],[name="adaptive_test_after_share_copy_color"]',
-            update
-        );
-
-        update();
-    })();
-    </script>
-    <?php
+    // Inline select-all for the logs bulk form (guarded: element only exists on logs tab).
+    wp_register_script( 'adaptive-test-admin-inline', false, [ 'adaptive-test-admin-unsaved' ], ADAPTIVE_LEVEL_TEST_VERSION, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- version constant used above
+    wp_enqueue_script( 'adaptive-test-admin-inline' );
+    wp_add_inline_script(
+        'adaptive-test-admin-inline',
+        '(function(){var el=document.getElementById("esl-select-all");if(el){el.addEventListener("change",function(){document.querySelectorAll("#esl-logs-bulk-form input[name=\'log_ids[]\']").forEach(function(cb){cb.checked=this.checked;},this);});}})()'
+    );
 }
-add_action( 'admin_footer', 'adaptive_test_preview_toggle_js' );
+add_action( 'admin_enqueue_scripts', 'adaptive_test_admin_enqueue' );
+
+
 
 function adaptive_test_unsaved_changes_js() {
     $screen = get_current_screen();
     if ( ! $screen || 'settings_page_adaptive-level-test' !== $screen->id ) return;
     ?>
-    <style>
-    #esl-unsaved-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;align-items:center;justify-content:center;}
-    #esl-unsaved-overlay.esl-visible{display:flex;}
-    #esl-unsaved-dialog{background:#fff;border-radius:4px;padding:24px 28px;max-width:420px;width:90%;box-shadow:0 4px 24px rgba(0,0,0,.18);}
-    #esl-unsaved-dialog h3{margin:0 0 8px;font-size:1rem;color:#1d2327;}
-    #esl-unsaved-dialog p{margin:0 0 16px;color:#50575e;font-size:0.9rem;line-height:1.5;}
-    #esl-unsaved-dialog ul{margin:0 0 20px;padding-left:20px;color:#50575e;font-size:0.9rem;}
-    .esl-unsaved-actions{display:flex;gap:10px;justify-content:flex-end;}
-    #esl-unsaved-leave{background:none;border:1px solid #c3c4c7;color:#50575e;padding:6px 14px;border-radius:3px;cursor:pointer;font-size:0.875rem;}
-    #esl-unsaved-stay{background:#2271b1;border:none;color:#fff;padding:6px 14px;border-radius:3px;cursor:pointer;font-size:0.875rem;font-weight:600;}
-    #esl-unsaved-stay:focus{outline:2px solid #2271b1;outline-offset:2px;}
-    </style>
     <div id="esl-unsaved-overlay" role="dialog" aria-modal="true" aria-labelledby="esl-unsaved-title">
         <div id="esl-unsaved-dialog">
             <h3 id="esl-unsaved-title">Unsaved changes</h3>
@@ -1488,107 +996,6 @@ function adaptive_test_unsaved_changes_js() {
             </div>
         </div>
     </div>
-    <script>
-    (function() {
-        var dirty               = {};
-        var pendingHref         = null;
-        var intentionalNav      = false;
-        var overlay   = document.getElementById('esl-unsaved-overlay');
-        var list      = document.getElementById('esl-unsaved-list');
-        var stayBtn   = document.getElementById('esl-unsaved-stay');
-        var leaveBtn  = document.getElementById('esl-unsaved-leave');
-
-        var labels = {
-            'adaptive_test_options':            'General settings',
-            'adaptive_test_msg_options':        'Message settings',
-            'adaptive_test_before_options':     'Before the Quiz settings',
-            'adaptive_test_before_pro_options': 'Before the Quiz customisation',
-            'adaptive_test_during_options':     'During the Quiz settings',
-            'adaptive_test_during_pro_options': 'During the Quiz customisation',
-            'adaptive_test_after_options':      'After the Quiz settings',
-            'adaptive_test_after_pro_options':  'After the Quiz customisation',
-        };
-
-        // Restore dirty groups that survived a form save + page reload
-        var persisted = sessionStorage.getItem('adaptive_test_dirty_groups');
-        if (persisted) {
-            sessionStorage.removeItem('adaptive_test_dirty_groups');
-            try { JSON.parse(persisted).forEach(function(k) { dirty[k] = true; }); } catch(e) {}
-        }
-
-        document.querySelectorAll('.wrap form').forEach(function(form) {
-            var pageInput = form.querySelector('[name="option_page"]');
-            if (!pageInput) return;
-            var group = pageInput.value;
-            form.querySelectorAll('input, select, textarea').forEach(function(el) {
-                el.addEventListener('change', function() { dirty[group] = true; });
-                if (el.tagName !== 'SELECT') {
-                    el.addEventListener('input', function() { dirty[group] = true; });
-                }
-            });
-            form.addEventListener('submit', function() {
-                // Persist any other dirty groups so they survive the page reload
-                var remaining = Object.keys(dirty).filter(function(k) { return k !== group; });
-                if (remaining.length) {
-                    sessionStorage.setItem('adaptive_test_dirty_groups', JSON.stringify(remaining));
-                } else {
-                    sessionStorage.removeItem('adaptive_test_dirty_groups');
-                }
-                delete dirty[group];
-            });
-        });
-
-        function showModal(href) {
-            var dl = Object.keys(dirty).map(function(k) { return labels[k] || k; });
-            list.innerHTML = '';
-            dl.forEach(function(l) { var li = document.createElement('li'); li.textContent = l; list.appendChild(li); });
-            pendingHref = href;
-            overlay.classList.add('esl-visible');
-            stayBtn.focus();
-        }
-
-        stayBtn.addEventListener('click', function() {
-            overlay.classList.remove('esl-visible');
-            pendingHref = null;
-        });
-
-        leaveBtn.addEventListener('click', function() {
-            document.querySelectorAll('.wrap form').forEach(function(form) {
-                var pageInput = form.querySelector('[name="option_page"]');
-                if (pageInput && dirty[pageInput.value]) form.reset();
-            });
-            sessionStorage.removeItem('adaptive_test_dirty_groups');
-            dirty = {};
-            overlay.classList.remove('esl-visible');
-            intentionalNav = true;
-            window.location.href = pendingHref;
-        });
-
-        overlay.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                overlay.classList.remove('esl-visible');
-                pendingHref = null;
-            }
-        });
-
-        // Suppress any native unload dialog when navigation is triggered by our Leave button
-        window.addEventListener('beforeunload', function(e) {
-            if (intentionalNav) {
-                e.returnValue = '';
-                intentionalNav = false;
-            }
-        });
-
-        // Capture phase ensures our handler fires before any other click handler
-        document.querySelectorAll('.nav-tab-wrapper a, .esl-subnav a').forEach(function(link) {
-            link.addEventListener('click', function(e) {
-                if (!Object.keys(dirty).length) return;
-                e.preventDefault();
-                showModal(this.href);
-            }, true);
-        });
-    })();
-    </script>
     <?php
 }
 add_action( 'admin_footer', 'adaptive_test_unsaved_changes_js' );
@@ -1618,29 +1025,12 @@ function adaptive_test_settings_page_html() {
                     printf( esc_html__( '%d questions imported successfully.', 'adaptive-level-test' ), absint( wp_unslash( $_GET['count'] ?? 0 ) ) ); ?></p></div>
                 <?php if ( ! empty( $_GET['skipped'] ) ) : ?>
                 <div class="notice notice-warning is-dismissible"><p><?php
-                    // translators: %d is the number of questions skipped.
-                    printf( esc_html__( '%d questions were not imported — the 150-question free plan limit has been reached.', 'adaptive-level-test' ), absint( wp_unslash( $_GET['skipped'] ) ) ); ?>
-                    <?php if ( function_exists( 'adaptive_level_test_fs' ) ) : ?>
-                    <a href="<?php echo esc_url( adaptive_level_test_fs()->checkout_url() ); ?>" style="font-weight:600;"><?php esc_html_e( 'Upgrade to Pro for unlimited questions.', 'adaptive-level-test' ); ?></a>
-                    <?php endif; ?>
+                    // translators: %d is the number of questions skipped due to an unrecognised CEFR level.
+                    printf( esc_html__( '%d questions were not imported — they contained an unrecognised CEFR level and were skipped.', 'adaptive-level-test' ), absint( wp_unslash( $_GET['skipped'] ) ) ); ?>
                 </p></div>
                 <?php endif; ?>
             <?php elseif ( 'reseeded' === $_GET['message'] ) : ?>
                 <div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Database reset and re-seeded with sample questions.', 'adaptive-level-test' ); ?></p></div>
-            <?php elseif ( 'question_limit_reached' === $_GET['message'] ) : ?>
-                <div class="notice notice-warning is-dismissible"><p>
-                    <?php esc_html_e( 'Free plan limit reached: question banks are capped at 150 questions.', 'adaptive-level-test' ); ?>
-                    <?php if ( function_exists( 'adaptive_level_test_fs' ) ) : ?>
-                    <a href="<?php echo esc_url( adaptive_level_test_fs()->checkout_url() ); ?>" style="font-weight:600;"><?php esc_html_e( 'Upgrade to Pro for unlimited questions.', 'adaptive-level-test' ); ?></a>
-                    <?php endif; ?>
-                </p></div>
-            <?php elseif ( 'bank_limit_reached' === $_GET['message'] ) : ?>
-                <div class="notice notice-warning is-dismissible"><p>
-                    <?php esc_html_e( 'Free plan limit reached: you can have a maximum of 3 question banks.', 'adaptive-level-test' ); ?>
-                    <?php if ( function_exists( 'adaptive_level_test_fs' ) ) : ?>
-                    <a href="<?php echo esc_url( adaptive_level_test_fs()->checkout_url() ); ?>" style="font-weight:600;"><?php esc_html_e( 'Upgrade to Pro for unlimited banks.', 'adaptive-level-test' ); ?></a>
-                    <?php endif; ?>
-                </p></div>
             <?php elseif ( 'bank_renamed' === $_GET['message'] ) : ?>
                 <div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Question bank renamed successfully.', 'adaptive-level-test' ); ?></p></div>
             <?php elseif ( 'bank_duplicated' === $_GET['message'] ) : ?>
@@ -1655,25 +1045,6 @@ function adaptive_test_settings_page_html() {
                 <div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Email templates reset to defaults.', 'adaptive-level-test' ); ?></p></div>
             <?php endif; ?>
         <?php endif; ?>
-
-        <?php
-        // Over-limit notice: shown on the questions tab when data exceeds free-tier limits.
-        if ( 'questions' === $active_tab ) :
-            global $wpdb;
-            $bank_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}adaptive_question_banks" );
-            $over_bank_limit     = ! apply_filters( 'adaptive_test_bank_limit', true ) ? false : $bank_count > 3;
-            $has_question_limit  = (bool) apply_filters( 'adaptive_test_question_limit', true );
-            $over_question_limit = $has_question_limit && (bool) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}adaptive_questions GROUP BY bank_id HAVING COUNT(*) > 150 LIMIT 1" );
-            if ( $over_bank_limit || $over_question_limit ) : ?>
-            <div class="notice notice-info"><p>
-                <strong><?php esc_html_e( 'You are over the free tier limits.', 'adaptive-level-test' ); ?></strong>
-                <?php esc_html_e( 'Your existing banks and questions are safe — you can still use, view, and edit them all. The free plan is limited to 3 banks and 150 questions per bank, so adding new content is blocked until you are within those limits, or', 'adaptive-level-test' ); ?>
-                <?php if ( function_exists( 'adaptive_level_test_fs' ) ) : ?>
-                <a href="<?php echo esc_url( adaptive_level_test_fs()->checkout_url() ); ?>"><?php esc_html_e( 'upgrade to Pro.', 'adaptive-level-test' ); ?></a>
-                <?php endif; ?>
-            </p></div>
-            <?php endif;
-        endif; ?>
 
         <?php if ( isset( $_GET['settings-updated'] ) ) :
             $adaptive_test_save_info = get_transient( 'adaptive_test_save_' . get_current_user_id() );
@@ -1719,11 +1090,6 @@ function adaptive_test_settings_page_html() {
                 'after'  => __( '3 — After the Quiz',  'adaptive-level-test' ),
             ];
             ?>
-            <style>
-                .esl-subnav a { display:inline-block; padding:5px 10px; margin-right:4px; margin-bottom:-1px; border:1px solid #c3c4c7; border-bottom:none; border-radius:0; text-decoration:none; color:#50575e; background:#dcdcde; font-size:14px; font-weight:600; line-height:1.71428571; }
-                .esl-subnav a:hover { background:#fff; color:#1d2327; }
-                .esl-subnav a.active { background:#f0f0f1; color:#1d2327; border-bottom:1px solid #f0f0f1; }
-            </style>
             <div class="esl-subnav" style="margin: 16px 0 0; border-bottom: 1px solid #c3c4c7;">
                 <?php foreach ( $sub_nav as $key => $label ) : ?>
                     <a href="<?php echo esc_url( add_query_arg( [ 'page' => 'adaptive-level-test', 'tab' => 'quiz', 'sub' => $key ], admin_url( 'options-general.php' ) ) ); ?>" <?php echo $active_sub === $key ? 'class="active"' : ''; ?>>
@@ -1879,7 +1245,7 @@ function adaptive_test_settings_page_html() {
                                     endforeach; ?>
                                 </div>
                             </div>
-                            <?php do_action( 'adaptive_test_during_preview_footer' ); ?>
+                            <button id="esl-encouragement-eye" title="<?php esc_attr_e( 'Preview encouragement animation', 'adaptive-level-test' ); ?>" style="display:block;margin:10px auto 0;background:none;border:1px solid #ddd;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:0.78em;color:#6b7280;line-height:1.6;">&#128065; <?php esc_html_e( 'Preview encouragement', 'adaptive-level-test' ); ?></button>
                         </div>
 
                         <?php elseif ( 'after' === $active_sub ) :
@@ -1934,7 +1300,7 @@ function adaptive_test_settings_page_html() {
                                 <div style="background:#e5e7eb; height:10px; border-radius:6px; position:relative; margin-bottom:28px;">
                                     <?php
                                     $pv_show_err  = (bool) get_option( 'adaptive_test_show_error_rate', 1 );
-                                    $pv_err_rate  = 12; // example value; actual rate is computed by the test
+                                    $pv_err_rate  = absint( get_option( 'adaptive_test_error_rate', 5 ) );
                                     $pv_ind_width = max( 5, $pv_err_rate * 2 );
                                     $pv_left_pos  = 50 - ( $pv_ind_width / 2 );
                                     ?>
@@ -2045,13 +1411,6 @@ function adaptive_test_settings_page_html() {
                         <?php submit_button( __( 'Save Name', 'adaptive-level-test' ), 'primary', 'submit', false ); ?>
                         <a href="<?php echo esc_url( remove_query_arg( [ 'action', 'id' ] ) ); ?>" class="button"><?php esc_html_e( 'Cancel', 'adaptive-level-test' ); ?></a>
                     </form>
-                <?php elseif ( adaptive_test_bank_limit_reached() ) : ?>
-                    <p style="margin:0;">
-                        <?php esc_html_e( 'You have reached the free limit of 3 question banks.', 'adaptive-level-test' ); ?>
-                        <?php if ( function_exists( 'adaptive_level_test_fs' ) ) : ?>
-                        <a href="<?php echo esc_url( adaptive_level_test_fs()->checkout_url() ); ?>" style="font-weight:600;"><?php esc_html_e( 'Upgrade to Pro for unlimited banks.', 'adaptive-level-test' ); ?></a>
-                        <?php endif; ?>
-                    </p>
                 <?php else : ?>
                     <form method="post" action="" style="display:flex; gap:10px; align-items:center;">
                         <input type="hidden" name="adaptive_test_action" value="save_bank">
@@ -2101,25 +1460,7 @@ function adaptive_test_settings_page_html() {
         
         <!-- Add/Edit Form -->
         <div class="card" style="max-width: 100%; padding: 20px; margin-bottom: 20px;">
-            <?php
-            $current_bank_question_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table_name} WHERE bank_id = %d", $current_bank_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            $at_question_limit = ! $edit_question && adaptive_test_question_limit_reached( $current_bank_id );
-            $show_question_cap = (bool) apply_filters( 'adaptive_test_question_limit', true );
-            ?>
-            <h3>
-                <?php echo $edit_question ? esc_html__( 'Edit Question', 'adaptive-level-test' ) : esc_html__( 'Add New Question', 'adaptive-level-test' ); ?>
-                <?php if ( $show_question_cap ) : ?>
-                <span style="font-size:0.85rem; font-weight:400; color:#6b7280; margin-left:8px;"><?php echo esc_html( $current_bank_question_count ) . ' / 150 ' . esc_html__( 'questions (free limit)', 'adaptive-level-test' ); ?></span>
-                <?php endif; ?>
-            </h3>
-            <?php if ( $at_question_limit ) : ?>
-                <p>
-                    <?php esc_html_e( 'You have reached the free plan limit of 150 questions for this bank.', 'adaptive-level-test' ); ?>
-                    <?php if ( function_exists( 'adaptive_level_test_fs' ) ) : ?>
-                    <a href="<?php echo esc_url( adaptive_level_test_fs()->checkout_url() ); ?>" style="font-weight:600;"><?php esc_html_e( 'Upgrade to Pro for unlimited questions.', 'adaptive-level-test' ); ?></a>
-                    <?php endif; ?>
-                </p>
-            <?php else : ?>
+            <h3><?php echo $edit_question ? esc_html__( 'Edit Question', 'adaptive-level-test' ) : esc_html__( 'Add New Question', 'adaptive-level-test' ); ?></h3>
             <form method="post" action="">
                 <input type="hidden" name="adaptive_test_action" value="save_question">
                 <?php if ($edit_question): ?>
@@ -2161,7 +1502,6 @@ function adaptive_test_settings_page_html() {
                     <a href="<?php echo esc_url( remove_query_arg( [ 'action', 'id' ] ) ); ?>" class="button"><?php esc_html_e( 'Cancel', 'adaptive-level-test' ); ?></a>
                 <?php endif; ?>
             </form>
-            <?php endif; ?>
         </div>
 
         <!-- Questions List -->
@@ -2171,31 +1511,19 @@ function adaptive_test_settings_page_html() {
                     <th><?php esc_html_e( 'ID', 'adaptive-level-test' ); ?></th>
                     <th><?php esc_html_e( 'Question', 'adaptive-level-test' ); ?></th>
                     <th><?php esc_html_e( 'Level', 'adaptive-level-test' ); ?></th>
-                    <th><?php esc_html_e( 'Options', 'adaptive-level-test' ); ?></th>
+                    <th><?php esc_html_e( 'Answer', 'adaptive-level-test' ); ?></th>
                     <th><?php esc_html_e( 'Actions', 'adaptive-level-test' ); ?></th>
                 </tr>
             </thead>
             <tbody>
-                <?php
+                <?php 
                 $questions = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_name WHERE bank_id = %d ORDER BY level ASC, id ASC", $current_bank_id));
                 foreach ( $questions as $q ) : ?>
                     <tr>
                         <td><?php echo absint( $q->id ); ?></td>
                         <td><?php echo esc_html( $q->question_text ); ?></td>
                         <td><span class="badge"><?php echo esc_html( $q->level ); ?></span></td>
-                        <td><?php
-                            $opts = json_decode( $q->options, true );
-                            if ( is_array( $opts ) ) {
-                                $parts = array_map( function( $opt ) use ( $q ) {
-                                    return $opt === $q->answer
-                                        ? '<u><strong>' . esc_html( $opt ) . '</strong></u>'
-                                        : esc_html( $opt );
-                                }, $opts );
-                                echo implode( ', ', $parts ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- each option is esc_html'd above; <u> and <strong> are safe literals
-                            } else {
-                                echo esc_html( $q->answer );
-                            }
-                        ?></td>
+                        <td><?php echo esc_html( $q->answer ); ?></td>
                         <td>
                             <a href="<?php echo esc_url( add_query_arg( [ 'action' => 'edit_question', 'id' => $q->id ] ) ); ?>"><?php esc_html_e( 'Edit', 'adaptive-level-test' ); ?></a> |
                             <?php if ( $current_bank_is_default ) : ?>
@@ -2420,15 +1748,6 @@ function adaptive_test_settings_page_html() {
                 <?php endif; ?>
             </form>
 
-            <?php if ( $is_admin ) : ?>
-            <script>
-            document.getElementById('esl-select-all').addEventListener('change', function() {
-                document.querySelectorAll('#esl-logs-bulk-form input[name="log_ids[]"]').forEach(function(cb) {
-                    cb.checked = this.checked;
-                }, this);
-            });
-            </script>
-            <?php endif; ?>
         <?php endif; ?>
     </div>
     <?php
