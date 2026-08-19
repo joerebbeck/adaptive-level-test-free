@@ -1,21 +1,21 @@
 <?php
 /**
- * Plugin Name: Adaptive Level Test
+ * Plugin Name: IdiomIQ Adaptive Placement Test
  * Plugin URI:  https://idiomiq.com/adaptive-level-test
- * Description: An adaptive test for ESL students to determine their CEFR level (A2-C2).
- * Version:     1.3.0
+ * Description: An adaptive English placement test for ESL students. Determines CEFR level (A2-C2) using Bayesian IRT — fewer questions, more accurate results.
+ * Version:     1.3.1
  * Author:      IdiomIQ
  * Author URI:  https://idiomiq.com
  * License:     GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: adaptive-level-test
+ * Text Domain: idiomiq-adaptive-placement-test
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'ADAPTIVE_LEVEL_TEST_VERSION', '1.3.0' );
+define( 'ADAPTIVE_LEVEL_TEST_VERSION', '1.3.1' );
 define( 'ADAPTIVE_LEVEL_TEST_PLUGIN_PATH', plugin_dir_path( __FILE__ ) );
 
 require_once ADAPTIVE_LEVEL_TEST_PLUGIN_PATH . 'includes/cefr-colors.php';

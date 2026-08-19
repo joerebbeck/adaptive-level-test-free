@@ -1,18 +1,18 @@
-=== Adaptive Level Test ===
+=== IdiomIQ Adaptive Placement Test ===
 Contributors: joerebbeck
 Tags: quiz, english, esl, cefr, adaptive
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Adaptive English level test for ESL students. Determines CEFR level (A2–C2) using Bayesian IRT — fewer questions, more accurate results.
+An adaptive English placement test for ESL students. Determines CEFR level (A2–C2) using Bayesian IRT — fewer questions, more accurate results.
 
 == Description ==
 
-Adaptive Level Test delivers a personalised English placement test that dynamically adjusts to each student's ability level. Rather than presenting every question in a fixed order, the algorithm selects the next question based on the student's previous answers, reaching an accurate CEFR estimate with far fewer questions than a traditional fixed-length test.
+IdiomIQ Adaptive Placement Test delivers a personalised English placement test that dynamically adjusts to each student's ability level. Rather than presenting every question in a fixed order, the algorithm selects the next question based on the student's previous answers, reaching an accurate CEFR estimate with far fewer questions than a traditional fixed-length test.
 
 **How it works**
 
@@ -25,7 +25,7 @@ Adaptive Level Test delivers a personalised English placement test that dynamica
 
 * Adaptive algorithm: Bayesian EAP with Item Response Theory (IRT) 3PL model
 * CEFR levels: A2, B1, B2, C1, C2
-* Question banks: up to 3 banks, up to 150 questions each
+* Question banks: unlimited banks and questions per bank
 * CSV import: bulk upload questions with level, stem, and four answer options
 * Email results: configurable student and admin notification emails
 * Attempt log: searchable, sortable log with CSV export
@@ -48,7 +48,7 @@ To use a specific question bank:
 
 **Pro add-on**
 
-The Adaptive Level Test Pro add-on extends the free plugin with visual customisation panels (colours, fonts, borders, shadows), social sharing on the results screen, an animated encouragement overlay, per-student detailed reports, and unlimited question banks and questions per bank. The free plugin is fully functional without it.
+The IdiomIQ Adaptive Placement Test Pro add-on extends the free plugin with visual customisation panels (colours, fonts, borders, shadows), social sharing on the results screen, an animated encouragement overlay, and per-student detailed reports. The free plugin is fully functional without it.
 
 **Source code**
 
@@ -56,7 +56,7 @@ Development takes place on [GitHub](https://github.com/joerebbeck/adaptive-level
 
 == Installation ==
 
-1. Upload the `adaptive-level-test` folder to `/wp-content/plugins/`, or install directly from the WordPress plugin directory.
+1. Upload the `idiomiq-adaptive-placement-test` folder to `/wp-content/plugins/`, or install directly from the WordPress plugin directory.
 2. Activate the plugin through the **Plugins** menu.
 3. Go to **Settings → Adaptive Level Test** to configure question banks, email templates, and quiz behaviour.
 4. Add `[adaptive_level_test]` to any page or post where you want the test to appear.
@@ -121,11 +121,17 @@ Site owners should include the following information in their own Privacy Policy
 
 == Changelog ==
 
+= 1.3.1 =
+* Renamed plugin to IdiomIQ Adaptive Placement Test.
+* Removed question bank and question count limits — the free plugin is now fully unlimited.
+* Converted all inline script and style tags to use the WordPress enqueue API.
+* Extracted admin JavaScript to external files for better caching and CSP compatibility.
+
 = 1.3.0 =
 * Initial public release as a standalone free plugin.
 * Core adaptive quiz with Bayesian EAP / IRT 3PL algorithm.
-* Up to 3 question banks, 150 questions per bank.
-* CSV import with free-tier limit enforcement via filterable hooks.
+* Unlimited question banks and questions per bank.
+* CSV import for bulk question upload.
 * Student and admin result notification emails.
 * Attempt log with search, sort, per-column filtering, and CSV export.
 * Dyslexia-friendly OpenDyslexic font toggle.
@@ -135,6 +141,9 @@ Site owners should include the following information in their own Privacy Policy
 * Option to delete all plugin data on uninstall.
 
 == Upgrade Notice ==
+
+= 1.3.1 =
+Renamed to IdiomIQ Adaptive Placement Test. Question bank and question count limits removed — the free plugin is now fully unlimited.
 
 = 1.3.0 =
 Initial release.
